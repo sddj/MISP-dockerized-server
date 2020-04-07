@@ -5,10 +5,10 @@ STARTMSG="[HEALTHCHECK]"
 
 check_apache(){
     if [ -f /etc/apache2/sites-enabled/misp.ssl.conf ]; then
-        curl -fk https://localhost/ || (echo "$STARTMSG Error at apache2 HTTPS." && exit 1)
+        curl -fk https://localhost/users/login || (echo "$STARTMSG Error at apache2 HTTPS." && exit 1)
     fi
     if [ -f /etc/apache2/sites-enabled/misp.conf ]; then
-        curl -fk http://localhost/ || (echo "$STARTMSG Error at apache2 HTTP." && exit 1)
+        curl -fk http://localhost/users/login || (echo "$STARTMSG Error at apache2 HTTP." && exit 1)
     fi
     echo
 }
