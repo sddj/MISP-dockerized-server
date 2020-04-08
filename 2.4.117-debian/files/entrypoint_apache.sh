@@ -62,7 +62,6 @@ MISP_CONFIG=$MISP_APP_CONFIG_PATH/config.php
 DATABASE_CONFIG=$MISP_APP_CONFIG_PATH/database.php
 EMAIL_CONFIG=$MISP_APP_CONFIG_PATH/email.php
 CAKE_CONFIG="/var/www/MISP/app/Plugin/CakeResque/Config/config.php"
-CAKE_CORE="/var/www/MISP/app/Lib/cakephp/app/Config/core.php"
 SSL_CERT="/etc/apache2/ssl/cert.pem"
 SSL_KEY="/etc/apache2/ssl/key.pem"
 SSL_DH_FILE="/etc/apache2/ssl/dhparams.pem"
@@ -215,7 +214,22 @@ setup_via_cake_cli(){
         # Initialize user and fetch Auth Key
         sudo -E $CAKE userInit -q
         #AUTH_KEY=$(mysql -u $MYSQL_USER -p$MYSQL_PASSWORD -h $MYSQL_HOST $MYSQL_DATABASE -e "SELECT authkey FROM users;" | head -2| tail -1)
-        sed -i -e "s@//\(Configure::write('App.fullBaseUrl', '\).*\(');\)@\1$MISP_URL\2@" $CAKE_CORE
+        if ! [ -f /var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php.orig ]; then
+           cp /var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php /var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php.orig
+           sed -e "/if (!defined('FULL_BASE_URL')) {/a\\
+           #if (Configure::read('App.fullBaseUrl')) {%\
+           ##define('FULL_BASE_URL', Configure::read('App.fullBaseUrl'));%\
+           #}%\
+           }%\
+           if (!defined('FULL_BASE_URL')) {" /var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php.orig\
+               | tr '#%' '\011\012' >/var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php
+        fi
+        if ! [ -f /var/www/MISP/app/Config/core.php.orig ]; then
+            cp /var/www/MISP/app/Config/core.php /var/www/MISP/app/Config/core.php.orig
+            sed -e "/..Configure::write('App.baseUrl', env('SCRIPT_NAME'));/a\\
+            Configure::write('App.fullBaseUrl', '$MISP_URL');" /var/www/MISP/app/Config/core.php.orig\
+                >/var/www/MISP/app/Config/core.php
+        fi
         # Setup some more MISP default via cake CLI
         sudo $CAKE baseurl "$MISP_URL"
         # Tune global time outs
