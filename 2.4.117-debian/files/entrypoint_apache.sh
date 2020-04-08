@@ -356,6 +356,12 @@ init_mysql(){
     #####################################################################
     if [ -f "/var/www/MISP/app/Config/NOT_CONFIGURED" ]; then
         check_mysql
+        echo "$STARTMSG ... patching MySQL commands..."
+        sed -i\
+            -e 's/^[[:blank:]]*CREATE TABLE `/CREATE TABLE IF NOT EXISTS `/'\
+            -e 's/^[[:blank:]]*INSERT INTO /INSERT IGNORE INTO /'\
+            /var/www/MISP/INSTALL/MYSQL.sql
+        echo "$STARTMSG ... patching MySQL commands...finished"
         # import MISP DB Scheme
         echo "$STARTMSG ... importing MySQL scheme..."
         $MYSQLCMD < /var/www/MISP/INSTALL/MYSQL.sql
