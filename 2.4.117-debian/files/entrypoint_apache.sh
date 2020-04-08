@@ -17,6 +17,45 @@ ENTRYPOINT_PID_FILE="/entrypoint_apache.install"
 # treat everything except -- as exec cmd
 [ "${1:0:2}" != "--" ] && exec "$@"
 
+if [ -z "${MISP_MODULES_URL}" ]; then
+    MISP_MODULES_URL="http://misp-modules"
+    MISP_MODULES_PORT="6666"
+else
+    # http://$host:$port => MISP_MODULES_URL=http://$host, MISP_MODULES_PORT=$port
+    # http://$host => MISP_MODULES_URL=http://$host, MISP_MODULES_PORT=80
+    # https://$host:$port => MISP_MODULES_URL=https://$host, MISP_MODULES_PORT=$port
+    # https://$host => MISP_MODULES_URL=https://$host, MISP_MODULES_PORT=443
+    # $host:$port => MISP_MODULES_URL=http://$host, MISP_MODULES_PORT=$port
+    # $host => MISP_MODULES_URL=http://$host, MISP_MODULES_PORT=6666
+    URL="${MISP_MODULES_URL}"
+    case "${URL}" in
+        http://*)
+            URL="$(echo "${URL}" | sed -e 's,http://,,')"
+            MISP_MODULES_PROTO="http://"
+            MISP_MODULES_PORT="80"
+            ;;
+        https:*)
+            URL="$(echo "${URL}" | sed -e 's,https://,,')"
+            MISP_MODULES_PROTO="https://"
+            MISP_MODULES_PORT="443"
+            ;;
+        *)
+            MISP_MODULES_PROTO="http://"
+            MISP_MODULES_PORT="6666"
+            ;;
+    esac
+    echo $URL
+    case "${URL}" in
+        *:*)
+            MISP_MODULES_URL="${MISP_MODULES_PROTO}$(echo "${URL}" | sed -e 's,:.*,,')"
+            MISP_MODULES_PORT="$(echo "${URL}" | sed -e 's,.*:,,')"
+            ;;
+        *)
+            MISP_MODULES_URL="${MISP_MODULES_PROTO}${URL}"
+            ;;
+    esac
+fi
+
 MISP_BASE_PATH=/var/www/MISP
 MISP_APP_PATH=/var/www/MISP/app
 MISP_APP_CONFIG_PATH=$MISP_APP_PATH/Config
@@ -194,19 +233,19 @@ setup_via_cake_cli(){
         sudo $CAKE Admin setSetting "Plugin.Enrichment_hover_timeout" 150
         sudo $CAKE Admin setSetting "Plugin.Enrichment_cve_enabled" true
         sudo $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_url" "http://misp-modules"
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_port" 6666
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_url" "${MISP_MODULES_URL}"
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
         # Enable Import modules set better timout
         sudo $CAKE Admin setSetting "Plugin.Import_services_enable" true
-        sudo $CAKE Admin setSetting "Plugin.Import_services_url" "http://misp-modules"
-        sudo $CAKE Admin setSetting "Plugin.Import_services_port" 6666
+        sudo $CAKE Admin setSetting "Plugin.Import_services_url" "${MISP_MODULES_URL}"
+        sudo $CAKE Admin setSetting "Plugin.Import_services_port" "${MISP_MODULES_PORT}"
         sudo $CAKE Admin setSetting "Plugin.Import_timeout" 300
         sudo $CAKE Admin setSetting "Plugin.Import_ocr_enabled" true
         sudo $CAKE Admin setSetting "Plugin.Import_csvimport_enabled" true
         # Enable modules set better timout
         sudo $CAKE Admin setSetting "Plugin.Export_services_enable" true
-        sudo $CAKE Admin setSetting "Plugin.Export_services_url" "http://misp-modules"
-        sudo $CAKE Admin setSetting "Plugin.Export_services_port" 6666
+        sudo $CAKE Admin setSetting "Plugin.Export_services_url" "${MISP_MODULES_URL}"
+        sudo $CAKE Admin setSetting "Plugin.Export_services_port" "${MISP_MODULES_PORT}"
         sudo $CAKE Admin setSetting "Plugin.Export_timeout" 300
         sudo $CAKE Admin setSetting "Plugin.Export_pdfexport_enabled" true
         # Enable installer org and tune some configurables
@@ -352,6 +391,15 @@ check_mysql(){
 
 }
 
+check_misp_modules(){
+    h='Content-Type: application/json'
+    d='{"module": "countrycode", "domain": "www.google.com"}'
+    u="${MISP_MODULES_URL}:${MISP_MODULES_PORT}"
+    while ! curl -H "$h" -d "$d" "$u" >/dev/null 2>&1; do
+        sleep 5
+    done
+}
+
 init_mysql(){
     #####################################################################
     if [ -f "/var/www/MISP/app/Config/NOT_CONFIGURED" ]; then
@@ -446,6 +494,7 @@ echo "$STARTMSG Check if PGP should be enabled...." && init_pgp
 
 echo "$STARTMSG Check if SMIME should be enabled..." && init_smime
 
+if [ "$USE_HTTPS" ]; then
 ##### create a cert if it is required
 echo "$STARTMSG Check if a cert is required..." && create_ssl_cert
 
@@ -458,12 +507,16 @@ echo "$STARTMSG Check if HTTPS MISP config should be enabled..."
 
 echo "$STARTMSG Check if HTTP MISP config should be disabled..."
     ( [ -f /etc/apache2/ssl/cert.pem ] && [ ! -f /etc/apache2/sites-enabled/misp.conf ] ) && mv /etc/apache2/sites-enabled/misp.conf /etc/apache2/sites-enabled/misp.http
+fi
 
 ##### check Redis
 echo "$STARTMSG Check if Redis is ready..." && check_redis
 
 ##### check MySQL
 echo "$STARTMSG Check if MySQL is ready..." && check_mysql
+
+##### check misp-modules
+echo "$STARTMSG Check if misp-modules is ready..." && check_misp_modules
 
 ##### Import MySQL scheme
 echo "$STARTMSG Import MySQL scheme..." && init_mysql
