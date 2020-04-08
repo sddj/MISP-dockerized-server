@@ -1,0 +1,8 @@
+#!/bin/sh
+now=$(date +%Y%m%d)
+last=$(aws ecr list-images --repository-name "$1" | jq -Mr '.imageIds[].imageTag' | grep "^$now" | sort | tail -n 1)
+if [ -z "$last" ]; then
+  echo "${now}.1"
+else
+  echo "${now}.$((${last#*.} + 1))"
+fi
