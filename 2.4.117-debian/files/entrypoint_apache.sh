@@ -44,7 +44,6 @@ else
             MISP_MODULES_PORT="6666"
             ;;
     esac
-    echo $URL
     case "${URL}" in
         *:*)
             MISP_MODULES_URL="${MISP_MODULES_PROTO}$(echo "${URL}" | sed -e 's,:.*,,')"
@@ -63,6 +62,7 @@ MISP_CONFIG=$MISP_APP_CONFIG_PATH/config.php
 DATABASE_CONFIG=$MISP_APP_CONFIG_PATH/database.php
 EMAIL_CONFIG=$MISP_APP_CONFIG_PATH/email.php
 CAKE_CONFIG="/var/www/MISP/app/Plugin/CakeResque/Config/config.php"
+CAKE_CORE="/var/www/MISP/app/Lib/cakephp/app/Config/core.php"
 SSL_CERT="/etc/apache2/ssl/cert.pem"
 SSL_KEY="/etc/apache2/ssl/key.pem"
 SSL_DH_FILE="/etc/apache2/ssl/dhparams.pem"
@@ -215,6 +215,7 @@ setup_via_cake_cli(){
         # Initialize user and fetch Auth Key
         sudo -E $CAKE userInit -q
         #AUTH_KEY=$(mysql -u $MYSQL_USER -p$MYSQL_PASSWORD -h $MYSQL_HOST $MYSQL_DATABASE -e "SELECT authkey FROM users;" | head -2| tail -1)
+        sed -i -e "s@//\(Configure::write('App.fullBaseUrl', '\).*\(');\)@\1$MISP_URL\2@" $CAKE_CORE
         # Setup some more MISP default via cake CLI
         sudo $CAKE baseurl "$MISP_URL"
         # Tune global time outs
