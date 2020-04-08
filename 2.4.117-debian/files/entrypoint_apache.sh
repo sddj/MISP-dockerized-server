@@ -72,11 +72,10 @@ PID_CERT_CREATER="/etc/apache2/ssl/SSL_create.pid"
 # defaults
 
 [ -z "$PGP_ENABLE" ] && PGP_ENABLE=false
-[ -z "$SMIME_ENABLE" ] && SMIME_ENABLE=false
+[ -z "$SMIME_ENABLE" ] && SMIME_ENABLE=0
+[ -z "$HTTPS_ENABLE" ] && HTTPS_ENABLE=y
 ( [ -z "$MISP_URL" ] && [ -z "$MISP_FQDN" ] ) && echo "Please set 'MISP_FQDN' or 'MISP_URL' environment variable in docker-compose.override.yml file for misp-server!!!" && exit
 ( [ -z "$MISP_URL" ] && [ ! -z "$MISP_FQDN" ] ) && MISP_URL="https://$(echo "$MISP_FQDN"|cut -d '/' -f 3)"
-[ -z "$PGP_ENABLE" ] && PGP_ENABLE=0
-[ -z "$SMIME_ENABLE" ] && SMIME_ENABLE=0
 [ -z "$MYSQL_HOST" ] && MYSQL_HOST=localhost
 [ -z "$MYSQL_PORT" ] && MYSQL_PORT=3306
 [ -z "$MYSQL_USER" ] && MYSQL_USER=misp
@@ -97,7 +96,7 @@ PID_CERT_CREATER="/etc/apache2/ssl/SSL_create.pid"
 init_pgp(){
     local FOLDER="/var/www/MISP/.gnupgp/public.key"
     
-    if [ ! $PGP_ENABLE == "y" ]; then
+    if [ "$PGP_ENABLE" != "y" ]; then
         # if pgp should not be activated return
         echo "$STARTMSG PGP should not be activated."
         return
@@ -118,7 +117,7 @@ init_pgp(){
 init_smime(){
     local FOLDER="/var/www/MISP/.smime/cert.pem"
       
-    if [ ! $SMIME_ENABLE == "y" ]; then 
+    if [ "$SMIME_ENABLE" != "y" ]; then 
         echo "$STARTMSG S/MIME should not be activated."
         return
     elif [ -f "$FOLDER" ]; then
@@ -422,7 +421,7 @@ check_redis(){
     # Test when Redis is ready
     while (true)
     do
-        [ "$(redis-cli -h "$REDIS_FQDN" ping)" == "PONG" ] && break;
+        [ "$(redis-cli -h "$REDIS_FQDN" ping)" = "PONG" ] && break;
         echo "$STARTMSG Wait for Redis..."
         sleep 2
     done
@@ -434,12 +433,14 @@ upgrade(){
         if [ ! -f "$i"/"${NAME}" ] 
         then
             # File not exist and now it will be created
+            [ -d "$i" ] || mkdir -p "$i"
             echo "${VERSION}" > "$i"/"${NAME}"
-        elif [ ! -f "$i"/"${NAME}" ] && [ -z "$(cat "$i"/"${NAME}")" ]
+        fi
+        if [ -s "$i"/"${NAME}" ]
         then
             # File exists, but is empty
             echo "${VERSION}" > "$i"/"${NAME}"
-        elif [ "$VERSION" == "$(cat "$i"/"${NAME}")" ]
+        elif [ "$VERSION" = "$(cat "$i"/"${NAME}")" ]
         then
             # File exists and the volume is the current version
             echo "$STARTMSG Folder $i is on the newest version."
@@ -483,7 +484,7 @@ upgrade(){
 ##############   MAIN   #################
 
 # If a customer needs a analze column in misp
-echo "$STARTMSG Check if analyze column should be added..." && [ "$ADD_ANALYZE_COLUMN" == "yes" ] && add_analyze_column
+echo "$STARTMSG Check if analyze column should be added..." && [ "$ADD_ANALYZE_COLUMN" = "yes" ] && add_analyze_column
 
 # Change PHP VARS
 echo "$STARTMSG Change PHP values ..." && change_php_vars
@@ -494,7 +495,9 @@ echo "$STARTMSG Check if PGP should be enabled...." && init_pgp
 
 echo "$STARTMSG Check if SMIME should be enabled..." && init_smime
 
-if [ "$USE_HTTPS" ]; then
+if [ "$HTTPS_ENABLE" != "y" ]; then
+echo "$STARTMSG HTTPS should not be activated."
+else
 ##### create a cert if it is required
 echo "$STARTMSG Check if a cert is required..." && create_ssl_cert
 
@@ -573,4 +576,4 @@ __WELCOME__
 
 ##### execute apache
 [ "$CMD_APACHE" != "none" ] && start_apache "$CMD_APACHE"
-[ "$CMD_APACHE" == "none" ] && start_apache
+[ "$CMD_APACHE" = "none" ] && start_apache
