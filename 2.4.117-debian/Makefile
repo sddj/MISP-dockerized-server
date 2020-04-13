@@ -1,6 +1,6 @@
-IMAGE=dcso/misp-dockerized-server
-ECR_IMAGE=366760835561.dkr.ecr.us-east-1.amazonaws.com/misp-server
 VERSION=2.4.117
+SRC_TAGGED_IMAGE=dcso/misp-dockerized-server:${VERSION}-debian
+DST_IMAGE=misp-server
 
 .PHONY: build push
 build:
@@ -11,13 +11,13 @@ build:
 	 --build-arg RELEASE_DATE=$$(date +%Y-%m-%d)\
 	 --build-arg GIT_REPO=$$(git remote -v | grep 'origin.*fetch' | cut -f 2 | cut -d ' ' -f 1)\
 	 --build-arg VCS_REF=$$(git rev-parse HEAD)\
-	 -t ${IMAGE}:${VERSION}-debian\
+	 -t ${SRC_TAGGED_IMAGE}\
 	 .
 
 push:
 	if [ -f $$HOME/r/opt/aws/bin/activate ]; then . $$HOME/r/opt/aws/bin/activate; fi\
 	&& $$(aws ecr get-login --no-include-email)\
-	&& TAG=$$(bin/image-tag misp-server)\
-	&& docker tag ${IMAGE}:${VERSION}-debian ${ECR_IMAGE}:$$TAG\
-	&& docker push ${ECR_IMAGE}:$$TAG\
-	&& echo ${ECR_IMAGE}:$$TAG
+	&& DST_TAGGED_IMAGE=$$(bin/image-repo-tag ${DST_IMAGE})\
+	&& docker tag ${SRC_TAGGED_IMAGE} $$DST_TAGGED_IMAGE\
+	&& docker push $$DST_TAGGED_IMAGE\
+	&& echo $$DST_TAGGED_IMAGE
