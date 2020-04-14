@@ -1,10 +1,12 @@
-VERSION=2.4.117
+VERSION=2.4.124
 SRC_TAGGED_IMAGE=dcso/misp-dockerized-server:${VERSION}-debian
 DST_IMAGE=misp-server
 
 .PHONY: build push
 build:
 	docker build\
+	 --build-arg AUTHOR='Unit 42 Tech Team <unit42@paloaltonetworks.com>'\
+	 --build-arg VENDOR='Palo Alto Networks'\
 	 --build-arg VERSION=${VERSION}\
 	 --build-arg MISP_TAG=${VERSION}\
 	 --build-arg BUILD_DATE=$$(date +%Y-%m-%d)\

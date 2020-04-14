@@ -143,7 +143,7 @@ start_apache() {
     # Apache gets grumpy about PID files pre-existing
     rm -f /run/apache2/apache2.pid
     # execute APACHE2
-    /usr/sbin/apache2ctl -DFOREGROUND "$1"
+    /usr/sbin/apache2ctl -DFOREGROUND "$@"
 }
 
 add_analyze_column(){
@@ -235,7 +235,7 @@ setup_via_cake_cli(){
         # Tune global time outs
         sudo $CAKE Admin setSetting "Session.autoRegenerate" 1
         sudo $CAKE Admin setSetting "Session.timeout" 600
-        sudo $CAKE Admin setSetting "Session.cookie_timeout" 3600
+        # TODO: Invalid setting: # sudo $CAKE Admin setSetting "Session.cookie_timeout" 3600
         # Enable GnuPG
         sudo $CAKE Admin setSetting "GnuPG.email" "$SENDER_ADDRESS"
         sudo $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/.gnupg"
@@ -245,8 +245,8 @@ setup_via_cake_cli(){
         sudo $CAKE Admin setSetting "Plugin.Enrichment_hover_enable" true
         sudo $CAKE Admin setSetting "Plugin.Enrichment_timeout" 300
         sudo $CAKE Admin setSetting "Plugin.Enrichment_hover_timeout" 150
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_cve_enabled" true
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
+        # TODO: Invalid setting: # sudo $CAKE Admin setSetting "Plugin.Enrichment_cve_enabled" true
+        # TODO: Invalid setting: # sudo $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
         sudo $CAKE Admin setSetting "Plugin.Enrichment_services_url" "${MISP_MODULES_URL}"
         sudo $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
         # Enable Import modules set better timout
@@ -406,10 +406,7 @@ check_mysql(){
 }
 
 check_misp_modules(){
-    h='Content-Type: application/json'
-    d='{"module": "countrycode", "domain": "www.google.com"}'
-    u="${MISP_MODULES_URL}:${MISP_MODULES_PORT}"
-    while ! curl -H "$h" -d "$d" "$u" >/dev/null 2>&1; do
+    while ! curl "${MISP_MODULES_URL}:${MISP_MODULES_PORT}/modules" >/dev/null 2>&1; do
         sleep 5
     done
 }
