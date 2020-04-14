@@ -93,23 +93,35 @@ PID_CERT_CREATER="/etc/apache2/ssl/SSL_create.pid"
 
 
 init_pgp(){
-    local FOLDER="/var/www/MISP/.gnupgp/public.key"
+    local FOLDER="/var/www/MISP/.gnupg/public.key"
     
+    if ! [ -f /var/www/MISP/.gnupg/private.key ] && [ -n "${MISP_PGP_PRIVATE}" ]; then
+        [ -d /var/www/MISP/.gnupg ] || mkdir -p /var/www/MISP/.gnupg
+        echo "${MISP_PGP_PRIVATE}" >/var/www/MISP/.gnupg/private.key
+    fi
+    if ! [ -f ${FOLDER} ] && [ -n "${MISP_PGP_PUBLIC}" ]; then
+        [ -d /var/www/MISP/.gnupg ] || mkdir -p /var/www/MISP/.gnupg
+        echo "${MISP_PGP_PUBLIC}" >${FOLDER}
+    fi
     if [ "$PGP_ENABLE" != "y" ]; then
         # if pgp should not be activated return
         echo "$STARTMSG PGP should not be activated."
         return
-    elif [ ! -f "$FOLDER" ]; then
+    elif [ ! -f ${FOLDER} ]; then
         # if secring.pgp do not exists return
-        echo "$STARTMSG No public PGP key found in $FOLDER."
-        return
+        echo "$STARTMSG No public PGP key found in $FOLDER. Please add it. Sleeping 120 seconds..."
+        sleep 120
+        exit 1
     else
         PGP_ENABLE=true
         echo "$STARTMSG ###### PGP Key exists and copy it to MISP webroot #######"
 
+        chown -R www-data:www-data $(dirname ${FOLDER})
+        chmod 550 $(dirname ${FOLDER})
+        chmod 440 $(dirname ${FOLDER})/*
+
         # Copy public key to the right place
-        [ -f /var/www/MISP/.gnupg/public.key ] || echo "$STARTMSG GNU PGP Key isn't existing. Please add them. sleep 120 seconds" && sleep 120 && exit 1
-        [ -f /var/www/MISP/.gnupg/public.key ] && sudo -u www-data sh -c "cp /var/www/MISP/.gnupg/public.key /var/www/MISP/app/webroot/gpg.asc"
+        sudo -u www-data sh -c "cp ${FOLDER} /var/www/MISP/app/webroot/gpg.asc"
     fi
 }
 
@@ -119,7 +131,7 @@ init_smime(){
     if [ "$SMIME_ENABLE" != "y" ]; then 
         echo "$STARTMSG S/MIME should not be activated."
         return
-    elif [ -f "$FOLDER" ]; then
+    elif [ ! -f "$FOLDER" ]; then
         # If certificate do not exists exit
         echo "$STARTMSG No Certificate found in $FOLDER."
         return
@@ -130,7 +142,7 @@ init_smime(){
         chown www-data:www-data /var/www/MISP/.smime
         chmod 500 /var/www/MISP/.smime
         ## the public certificate (for Encipherment) to the webroot
-        sudo -u www-data sh -c "cp /var/www/MISP/.smime/cert.pem /var/www/MISP/app/webroot/public_certificate.pem"
+        sudo -u www-data sh -c "cp ${FOLDER} /var/www/MISP/app/webroot/public_certificate.pem"
         #Due to this action, the MISP users will be able to download your public certificate (for Encipherment) by clicking on the footer
         ### Set permissions
         #chown www-data:www-data /var/www/MISP/app/webroot/public_certificate.pem
