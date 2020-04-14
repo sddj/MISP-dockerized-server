@@ -244,23 +244,24 @@ setup_via_cake_cli(){
         fi
         # Setup some more MISP default via cake CLI
         sudo $CAKE baseurl "$MISP_URL"
+        sudo $CAKE Admin setSetting "MISP.external_baseurl" "$MISP_URL"
         # Tune global time outs
         sudo $CAKE Admin setSetting "Session.autoRegenerate" 1
         sudo $CAKE Admin setSetting "Session.timeout" 600
-        # TODO: Invalid setting: # sudo $CAKE Admin setSetting "Session.cookie_timeout" 3600
+        sudo $CAKE Admin setSetting "Session.cookieTimeout" 3600
         # Enable GnuPG
         sudo $CAKE Admin setSetting "GnuPG.email" "$SENDER_ADDRESS"
         sudo $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/.gnupg"
         #sudo $CAKE Admin setSetting "GnuPG.password" ""
         # Enable Enrichment set better timeouts
         sudo $CAKE Admin setSetting "Plugin.Enrichment_services_enable" true
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_url" "${MISP_MODULES_URL}"
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
         sudo $CAKE Admin setSetting "Plugin.Enrichment_hover_enable" true
         sudo $CAKE Admin setSetting "Plugin.Enrichment_timeout" 300
         sudo $CAKE Admin setSetting "Plugin.Enrichment_hover_timeout" 150
-        # TODO: Invalid setting: # sudo $CAKE Admin setSetting "Plugin.Enrichment_cve_enabled" true
-        # TODO: Invalid setting: # sudo $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_url" "${MISP_MODULES_URL}"
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_cve_advanced_enabled" true
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
         # Enable Import modules set better timout
         sudo $CAKE Admin setSetting "Plugin.Import_services_enable" true
         sudo $CAKE Admin setSetting "Plugin.Import_services_url" "${MISP_MODULES_URL}"
@@ -314,6 +315,9 @@ setup_via_cake_cli(){
         # Force defaults to make MISP Server Settings less RED
         sudo $CAKE Admin setSetting "MISP.language" "eng"
         #sudo $CAKE Admin setSetting "MISP.proposals_block_attributes" false
+        sudo $CAKE Admin setSetting "MISP.default_event_tag_collection" "None"
+        sudo $CAKE Admin setSetting "MISP.proposals_block_attributes" "true"
+
         # Redis block
         sudo $CAKE Admin setSetting "MISP.redis_host" "$REDIS_FQDN" 
         sudo $CAKE Admin setSetting "MISP.redis_port" 6379
