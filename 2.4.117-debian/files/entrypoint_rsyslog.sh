@@ -14,6 +14,7 @@ STARTMSG="${Light_Green}[ENTRYPOINT_RSYSLOG]${NC}"
 [ "$DELETE_LOG" = "yes" ] && echo "$STARTMSG delete old MISP logs: rm -f /var/www/MISP/app/tmp/logs/*" && rm -f /var/www/MISP/app/tmp/logs/*
 
 
+touch /var/www/MISP/app/tmp/logs/{error.log,mispzmq.error.log,mispzmq.log,resque-scheduler-error.log,resque-worker-error.log}
 
 # Disable imklog
 sed -i 's/^\(module(load="imklog")\)/#\1/;' /etc/rsyslog.conf
