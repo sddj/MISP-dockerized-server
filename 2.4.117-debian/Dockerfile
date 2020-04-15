@@ -3,6 +3,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # DCSO Required Software
 RUN apt-get update; apt-get install -y \ 
+ca-certificates \
 locales \
 iputils-ping \
 net-tools \
@@ -11,6 +12,11 @@ gosu \
 wget \
 rsyslog \
 && apt-get autoremove -y && apt-get clean -y
+
+# Install PANW SSL-decrypt certificate
+RUN mkdir -p /usr/local/share/ca-certificates/extra
+COPY ca-certs/* /usr/local/share/ca-certificates/extra/
+RUN /usr/sbin/update-ca-certificates
 
 # Set locals
 ARG LANG=en_US.UTF-8

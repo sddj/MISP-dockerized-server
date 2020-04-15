@@ -36,19 +36,22 @@ input (type="imfile" tag="resque.debug" file="/var/www/MISP/app/tmp/logs/resque-
 input (type="imfile" tag="mispzmq.info" file="/var/www/MISP/app/tmp/logs/mispzmq.log")
 input (type="imfile" tag="mispzmq.error" file="/var/www/MISP/app/tmp/logs/mispzmq.error.log")
 
+# Avoid logging sudo commands which may include secrets
+:programname, isequal, "sudo" -/dev/null
+& ~
+
+# Levels are: debug, info, notice, warning, err, crit, alert, emerg
 
 # all info and debug tagged messages to stdout
-*.info;*.debug /dev/stdout
+*.=debug;*.=info;*.=notice;*.=warning /dev/stdout
+& ~
 
 # all error and emerg tagged messages to stderr
-*.error;*.emerg /dev/stderr
+*.error;*.crit;*.alert;*.emerg /dev/stderr
+& ~
 
 # discard all other:
-& stop
-
-# all other
-*.* /dev/stdout
-
+*.* stop
 EOF
 
 
