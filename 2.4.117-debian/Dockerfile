@@ -122,6 +122,7 @@ RUN apt-get install -y \
         php-mbstring \
         php-redis \
         php-gnupg \
+        php-gd \
         && apt-get autoremove -y && apt-get clean -y
 
 # 3/ MISP code
@@ -191,7 +192,9 @@ RUN apt-get install -y \
             ;pip3 install setuptools --upgrade \
             ;pip3 install lief \
         # # Install maec libraries for STIX
-            ;pip3 install maec
+            ;pip3 install maec \
+        # Install yara libs
+            ;pip3 install plyara
 
 
 
@@ -290,16 +293,11 @@ RUN apt-get install -y \
         ;./configure \
         ;make    \
         ;sudo make install \
-        ;ssdeep -h; # test \
+        ;ssdeep -h \
     #installing ssdeep_php
         ;sudo pecl install ssdeep \
     # 7.0 if your PHP 7.0 and you know what to do if you have a different version
-        ;for FILE in $(ls /etc/php/) \
-        do \
-            echo "extension=ssdeep.so" > /etc/php/$FILE/mods-available/ssdeep.ini; \
-            phpenmod ssdeep; \
-        done \
-        ;
+        ;for FILE in $(ls /etc/php/); do (echo "extension=ssdeep.so" | tee "/etc/php/${FILE}/mods-available/ssdeep.ini") && phpenmod ssdeep; done
 
 
 #########################################
