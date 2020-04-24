@@ -179,7 +179,6 @@ add_analyze_column(){
 
 patch_misp() {
     local F
-    [ -f $MISP_APP_CONFIG_PATH/core.php ] || cp $MISP_APP_CONFIG_PATH/core.default.php $MISP_APP_CONFIG_PATH/core.php
 
     F=${MISP_BASE_PATH}/INSTALL/MYSQL.sql
     if ! [ -f "${F}.orig" ]; then
@@ -189,28 +188,92 @@ patch_misp() {
             -e 's/^[[:blank:]]*INSERT INTO /INSERT IGNORE INTO /'\
             "${F}.orig" >"${F}"
     fi
-    F=${MISP_APP_PATH}/Lib/cakephp/lib/Cake/bootstrap.php
-    if ! [ -f "${F}.orig" ]; then
-        cp "${F}" "${F}.orig"
-        sed -e "/if (!defined('FULL_BASE_URL')) {/a\\
-        #if (Configure::read('App.fullBaseUrl')) {%\
-        ##define('FULL_BASE_URL', Configure::read('App.fullBaseUrl'));%\
-        #}%\
-        }%\
-        if (!defined('FULL_BASE_URL')) {" "${F}.orig"\
-            | tr '#%' '\011\012' >"${F}"
-    fi
-    F=${MISP_APP_CONFIG_PATH}/core.php
-    if ! [ -f "${F}.orig" ]; then
-        if [ -f "${F}" ]; then
-            cp "${F}" "${F}.orig"
-        else
-            cp ${MISP_APP_CONFIG_PATH}/core.default.php "${F}.orig"
-        fi
-        sed -e "/..Configure::write('App.baseUrl', env('SCRIPT_NAME'));/a\\
-        Configure::write('App.fullBaseUrl', '$MISP_URL');" "${F}.orig"\
-            >"${F}"
-    fi
+
+    pushd $MISP_BASE_PATH
+    patch -p1 <<'EOF'
+diff -ru MISP.orig/app/Config/core.default.php MISP/app/Config/core.default.php
+--- MISP.orig/app/Config/core.default.php	2020-04-20 21:49:57.000000000 +0000
++++ MISP/app/Config/core.default.php	2020-04-24 17:40:53.077253000 +0000
+@@ -97,6 +97,9 @@
+  * And uncomment the App.baseUrl below:
+  */
+ //Configure::write('App.baseUrl', env('SCRIPT_NAME'));
++if (env('MISP_URL')) {
++	Configure::write('App.fullBaseUrl', env('MISP_URL'));
++}
+ 
+ /**
+  * Uncomment the define below to use CakePHP prefix routes.
+diff -ru MISP.orig/app/Lib/cakephp/lib/Cake/bootstrap.php MISP/app/Lib/cakephp/lib/Cake/bootstrap.php
+--- MISP.orig/app/Lib/cakephp/lib/Cake/bootstrap.php	2020-04-20 21:50:21.000000000 +0000
++++ MISP/app/Lib/cakephp/lib/Cake/bootstrap.php	2020-04-24 17:35:06.155497000 +0000
+@@ -155,6 +155,11 @@
+  * Full URL prefix
+  */
+ if (!defined('FULL_BASE_URL')) {
++	if (Configure::read('App.fullBaseUrl')) {
++		define('FULL_BASE_URL', Configure::read('App.fullBaseUrl'));
++	}
++}
++if (!defined('FULL_BASE_URL')) {
+ 	$s = null;
+ 	if (env('HTTPS')) {
+ 		$s = 's';
+diff -ru MISP.orig/app/files/scripts/stix2/stix2misp.py MISP/app/files/scripts/stix2/stix2misp.py
+--- MISP.orig/app/files/scripts/stix2/stix2misp.py	2020-04-20 21:49:57.000000000 +0000
++++ MISP/app/files/scripts/stix2/stix2misp.py	2020-04-24 17:47:12.254098000 +0000
+@@ -24,7 +24,7 @@
+ import re
+ import stix2
+ from stix2misp_mapping import *
+-from collections import defaultdict
++from collections import defaultdict, OrderedDict
+ 
+ _MISP_dir = "/".join([p for p in os.path.dirname(os.path.realpath(__file__)).split('/')[:-4]])
+ _PyMISP_dir = '{_MISP_dir}/PyMISP'.format(_MISP_dir=_MISP_dir)
+@@ -107,7 +107,7 @@
+         try:
+             self.report[parsed_object['id'].split('--')[1]] = parsed_object
+         except AttributeError:
+-            self.report = {parsed_object['id'].split('--')[1]: parsed_object}
++            self.report = OrderedDict({parsed_object['id'].split('--')[1]: parsed_object})
+ 
+     def _load_usual_object(self, parsed_object):
+         self.event[parsed_object._type][parsed_object['id'].split('--')[1]] = parsed_object
+@@ -130,12 +130,14 @@
+ 
+     def build_from_STIX_with_report(self):
+         report_attributes = defaultdict(set)
++        report_attributes['name'] = None
+         for ruuid, report in self.report.items():
+             try:
+                 report_attributes['orgs'].add(report.created_by_ref.split('--')[1])
+             except AttributeError:
+                 pass
+-            report_attributes['name'].add(report.name)
++            if report_attributes['name'] is None:
++                report_attributes['name'] = report.name
+             if report.get('published'):
+                 report_attributes['published'].add(report.published)
+             if 'labels' in report:
+@@ -155,10 +157,12 @@
+             self.misp_event['Org'] = {'name': identity['name']}
+         if len(report_attributes['published']) == 1:
+             self.misp_event.publish_timestamp = self.getTimestampfromDate(report_attributes['published'].pop())
+-        if len(report_attributes['name']) == 1:
+-            self.misp_event.info = report_attributes['name'].pop()
++        if report_attributes['name'] is None:
++            self.misp_event.info = ("Imported with MISP import script for {} from {}."
++                                    .format(self.stix_version, os.path.basename(self.filename)))
+         else:
+-            self.misp_event.info = "Imported with MISP import script for {}.".format(self.stix_version)
++            self.misp_event.info = report_attributes['name']
++
+         for l in report_attributes['labels']:
+             self.misp_event.add_tag(l)
+ 
+EOF
+    popd
     echo "$STARTMSG patching MISP...finished"
 }
 
