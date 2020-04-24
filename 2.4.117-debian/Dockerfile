@@ -13,7 +13,7 @@ wget \
 rsyslog \
 && apt-get autoremove -y && apt-get clean -y
 
-# Install PANW SSL-decrypt certificate
+# Install additional SSL certificates
 RUN mkdir -p /usr/local/share/ca-certificates/extra
 COPY ca-certs/* /usr/local/share/ca-certificates/extra/
 RUN /usr/sbin/update-ca-certificates

@@ -56,25 +56,25 @@ else
 fi
 
 MISP_BASE_PATH=/var/www/MISP
-MISP_APP_PATH=/var/www/MISP/app
-MISP_APP_CONFIG_PATH=$MISP_APP_PATH/Config
-MISP_CONFIG=$MISP_APP_CONFIG_PATH/config.php
-DATABASE_CONFIG=$MISP_APP_CONFIG_PATH/database.php
-EMAIL_CONFIG=$MISP_APP_CONFIG_PATH/email.php
-CAKE_CONFIG="/var/www/MISP/app/Plugin/CakeResque/Config/config.php"
+MISP_APP_PATH=${MISP_BASE_PATH}/app
+MISP_APP_CONFIG_PATH=${MISP_APP_PATH}/Config
+MISP_CONFIG=${MISP_APP_CONFIG_PATH}/config.php
+DATABASE_CONFIG=${MISP_APP_CONFIG_PATH}/database.php
+EMAIL_CONFIG=${MISP_APP_CONFIG_PATH}/email.php
+CAKE_CONFIG="${MISP_APP_PATH}/Plugin/CakeResque/Config/config.php"
 SSL_CERT="/etc/apache2/ssl/cert.pem"
 SSL_KEY="/etc/apache2/ssl/key.pem"
 SSL_DH_FILE="/etc/apache2/ssl/dhparams.pem"
-FOLDER_with_VERSIONS="/var/www/MISP/app/tmp /var/www/MISP/app/files /var/www/MISP/app/Plugin/CakeResque/Config /var/www/MISP/app/Config /var/www/MISP/.gnupg /var/www/MISP/.smime /etc/apache2/ssl"
+FOLDER_with_VERSIONS="${MISP_APP_PATH}/tmp ${MISP_APP_PATH}/files ${MISP_APP_PATH}/Plugin/CakeResque/Config ${MISP_APP_CONFIG_PATH} ${MISP_BASE_PATH}/.gnupg ${MISP_BASE_PATH}/.smime /etc/apache2/ssl"
 PID_CERT_CREATER="/etc/apache2/ssl/SSL_create.pid"
 
 # defaults
 
-[ -z "$PGP_ENABLE" ] && PGP_ENABLE=false
-[ -z "$SMIME_ENABLE" ] && SMIME_ENABLE=0
-[ -z "$HTTPS_ENABLE" ] && HTTPS_ENABLE=y
 ( [ -z "$MISP_URL" ] && [ -z "$MISP_FQDN" ] ) && echo "Please set 'MISP_FQDN' or 'MISP_URL' environment variable in docker-compose.override.yml file for misp-server!!!" && exit
 ( [ -z "$MISP_URL" ] && [ ! -z "$MISP_FQDN" ] ) && MISP_URL="https://$(echo "$MISP_FQDN"|cut -d '/' -f 3)"
+[ -z "$PGP_ENABLE" ] && PGP_ENABLE=0
+[ -z "$SMIME_ENABLE" ] && SMIME_ENABLE=0
+[ -z "$HTTPS_ENABLE" ] && HTTPS_ENABLE=y
 [ -z "$MYSQL_HOST" ] && MYSQL_HOST=localhost
 [ -z "$MYSQL_PORT" ] && MYSQL_PORT=3306
 [ -z "$MYSQL_USER" ] && MYSQL_USER=misp
@@ -95,13 +95,13 @@ PID_CERT_CREATER="/etc/apache2/ssl/SSL_create.pid"
 init_pgp(){
     local PUBKEY="public.key"
     local PVTKEY="private.key"
-    local FOLDER="/var/www/MISP/.gnupg"
+    local FOLDER="${MISP_BASE_PATH}/.gnupg"
 
     if ! [ -f ${FOLDER}/${PVTKEY} ] && [ -n "${MISP_PGP_PRIVATE}" ]; then
         [ -d ${FOLDER} ] || mkdir -p ${FOLDER}
         echo "${MISP_PGP_PRIVATE}" >${FOLDER}/${PVTKEY}
     fi
-    if ! [ -f ${FOLDER} ] && [ -n "${MISP_PGP_PUBLIC}" ]; then
+    if ! [ -f ${FOLDER}/${PUBKEY} ] && [ -n "${MISP_PGP_PUBLIC}" ]; then
         [ -d ${FOLDER} ] || mkdir -p ${FOLDER}
         echo "${MISP_PGP_PUBLIC}" >${FOLDER}/${PUBKEY}
     fi
@@ -129,13 +129,13 @@ init_pgp(){
         PGP_ENABLE=true
         echo "$STARTMSG ###### PGP Key exists and copy it to MISP webroot #######"
         # Copy public key to the right place
-        if [ -f /var/www/MISP/app/webroot/gpg.asc ]; then rm /var/www/MISP/app/webroot/gpg.asc; fi
-        sudo -u www-data sh -c "cp ${FOLDER}/${PUBKEY} /var/www/MISP/app/webroot/gpg.asc"
+        if [ -f ${MISP_APP_PATH}/webroot/gpg.asc ]; then rm ${MISP_APP_PATH}/webroot/gpg.asc; fi
+        sudo -u www-data sh -c "cp ${FOLDER}/${PUBKEY} ${MISP_APP_PATH}/webroot/gpg.asc"
     fi
 }
 
 init_smime(){
-    local FOLDER="/var/www/MISP/.smime/cert.pem"
+    local FOLDER="${MISP_BASE_PATH}/.smime/cert.pem"
       
     if [ "$SMIME_ENABLE" != "y" ]; then 
         echo "$STARTMSG S/MIME should not be activated."
@@ -148,14 +148,14 @@ init_smime(){
         SMIME_ENABLE=1
         echo "$STARTMSG ###### S/MIME Cert exists and copy it to MISP webroot #######" 
         ### Set permissions
-        chown www-data:www-data /var/www/MISP/.smime
-        chmod 500 /var/www/MISP/.smime
+        chown www-data:www-data ${MISP_BASE_PATH}/.smime
+        chmod 500 ${MISP_BASE_PATH}/.smime
         ## the public certificate (for Encipherment) to the webroot
-        sudo -u www-data sh -c "cp ${FOLDER} /var/www/MISP/app/webroot/public_certificate.pem"
+        sudo -u www-data sh -c "cp ${FOLDER} ${MISP_APP_PATH}/webroot/public_certificate.pem"
         #Due to this action, the MISP users will be able to download your public certificate (for Encipherment) by clicking on the footer
         ### Set permissions
-        #chown www-data:www-data /var/www/MISP/app/webroot/public_certificate.pem
-        sudo -u www-data sh -c "chmod 440 /var/www/MISP/app/webroot/public_certificate.pem"
+        #chown www-data:www-data ${MISP_APP_PATH}/webroot/public_certificate.pem
+        sudo -u www-data sh -c "chmod 440 ${MISP_APP_PATH}/webroot/public_certificate.pem"
     fi
     
 }
@@ -168,13 +168,50 @@ start_apache() {
 }
 
 add_analyze_column(){
-    ORIG_FILE="/var/www/MISP/app/View/Elements/Events/eventIndexTable.ctp"
+    ORIG_FILE="${MISP_APP_PATH}/View/Elements/Events/eventIndexTable.ctp"
     PATCH_FILE="/eventIndexTable.patch"
 
     # Backup Orig File
     cp $ORIG_FILE ${ORIG_FILE}.bak
     # Patch file
     patch $ORIG_FILE < $PATCH_FILE
+}
+
+patch_misp() {
+    local F
+    [ -f $MISP_APP_CONFIG_PATH/core.php ] || cp $MISP_APP_CONFIG_PATH/core.default.php $MISP_APP_CONFIG_PATH/core.php
+
+    F=${MISP_BASE_PATH}/INSTALL/MYSQL.sql
+    if ! [ -f "${F}.orig" ]; then
+        cp "${F}" "${F}.orig"
+        sed\
+            -e 's/^[[:blank:]]*CREATE TABLE `/CREATE TABLE IF NOT EXISTS `/'\
+            -e 's/^[[:blank:]]*INSERT INTO /INSERT IGNORE INTO /'\
+            "${F}.orig" >"${F}"
+    fi
+    F=${MISP_APP_PATH}/Lib/cakephp/lib/Cake/bootstrap.php
+    if ! [ -f "${F}.orig" ]; then
+        cp "${F}" "${F}.orig"
+        sed -e "/if (!defined('FULL_BASE_URL')) {/a\\
+        #if (Configure::read('App.fullBaseUrl')) {%\
+        ##define('FULL_BASE_URL', Configure::read('App.fullBaseUrl'));%\
+        #}%\
+        }%\
+        if (!defined('FULL_BASE_URL')) {" "${F}.orig"\
+            | tr '#%' '\011\012' >"${F}"
+    fi
+    F=${MISP_APP_CONFIG_PATH}/core.php
+    if ! [ -f "${F}.orig" ]; then
+        if [ -f "${F}" ]; then
+            cp "${F}" "${F}.orig"
+        else
+            cp ${MISP_APP_CONFIG_PATH}/core.default.php "${F}.orig"
+        fi
+        sed -e "/..Configure::write('App.baseUrl', env('SCRIPT_NAME'));/a\\
+        Configure::write('App.fullBaseUrl', '$MISP_URL');" "${F}.orig"\
+            >"${F}"
+    fi
+    echo "$STARTMSG patching MISP...finished"
 }
 
 change_php_vars(){
@@ -212,7 +249,7 @@ init_misp_config(){
     sed -i "s/admin@misp.example.com/$SENDER_ADDRESS/" $MISP_CONFIG
 
     # echo "Configure MISP | Set GNUPG Homedir in config.php"
-    # sed -i "s,'homedir' => '/',homedir'                        => '/var/www/MISP/.gnupg'," $MISP_CONFIG
+    # sed -i "s,'homedir' => '/',homedir'                        => '${MISP_BASE_PATH}/.gnupg'," $MISP_CONFIG
 
     echo "$STARTMSG Configure MISP | Change Salt in config.php"
     sed -i "s,'salt'\\s*=>\\s*'','salt'                        => '$MISP_SALT'," $MISP_CONFIG
@@ -229,28 +266,12 @@ init_misp_config(){
 }
 
 setup_via_cake_cli(){
-    [ -f "/var/www/MISP/app/Config/database.php"  ] || (echo "$STARTMSG File /var/www/MISP/app/Config/database.php not found. Exit now." && exit 1)
-    if [ -f "/var/www/MISP/app/Config/NOT_CONFIGURED" ]; then
+    [ -f "${DATABASE_CONFIG}"  ] || (echo "$STARTMSG File ${DATABASE_CONFIG} not found. Exit now." && exit 1)
+    if [ -f "${MISP_APP_CONFIG_PATH}/NOT_CONFIGURED" ]; then
         echo "$STARTMSG Cake initializing started..."
         # Initialize user and fetch Auth Key
         sudo -E $CAKE userInit -q
         #AUTH_KEY=$(mysql -u $MYSQL_USER -p$MYSQL_PASSWORD -h $MYSQL_HOST $MYSQL_DATABASE -e "SELECT authkey FROM users;" | head -2| tail -1)
-        if ! [ -f /var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php.orig ]; then
-           cp /var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php /var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php.orig
-           sed -e "/if (!defined('FULL_BASE_URL')) {/a\\
-           #if (Configure::read('App.fullBaseUrl')) {%\
-           ##define('FULL_BASE_URL', Configure::read('App.fullBaseUrl'));%\
-           #}%\
-           }%\
-           if (!defined('FULL_BASE_URL')) {" /var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php.orig\
-               | tr '#%' '\011\012' >/var/www/MISP/app/Lib/cakephp/lib/Cake/bootstrap.php
-        fi
-        if ! [ -f /var/www/MISP/app/Config/core.php.orig ]; then
-            cp /var/www/MISP/app/Config/core.php /var/www/MISP/app/Config/core.php.orig
-            sed -e "/..Configure::write('App.baseUrl', env('SCRIPT_NAME'));/a\\
-            Configure::write('App.fullBaseUrl', '$MISP_URL');" /var/www/MISP/app/Config/core.php.orig\
-                >/var/www/MISP/app/Config/core.php
-        fi
         # Setup some more MISP default via cake CLI
         sudo >/dev/null 2>&1 $CAKE baseurl "$MISP_URL"
         sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.external_baseurl" "$MISP_URL"
@@ -440,17 +461,11 @@ check_misp_modules(){
 
 init_mysql(){
     #####################################################################
-    if [ -f "/var/www/MISP/app/Config/NOT_CONFIGURED" ]; then
+    if [ -f "${MISP_APP_CONFIG_PATH}/NOT_CONFIGURED" ]; then
         check_mysql
-        echo "$STARTMSG ... patching MySQL commands..."
-        sed -i\
-            -e 's/^[[:blank:]]*CREATE TABLE `/CREATE TABLE IF NOT EXISTS `/'\
-            -e 's/^[[:blank:]]*INSERT INTO /INSERT IGNORE INTO /'\
-            /var/www/MISP/INSTALL/MYSQL.sql
-        echo "$STARTMSG ... patching MySQL commands...finished"
         # import MISP DB Scheme
         echo "$STARTMSG ... importing MySQL scheme..."
-        $MYSQLCMD < /var/www/MISP/INSTALL/MYSQL.sql
+        $MYSQLCMD < ${MISP_BASE_PATH}/INSTALL/MYSQL.sql
         echo "$STARTMSG MySQL import...finished"
     fi
     echo
@@ -475,7 +490,7 @@ upgrade(){
             [ -d "$i" ] || mkdir -p "$i"
             echo "${VERSION}" > "$i"/"${NAME}"
         fi
-        if [ -s "$i"/"${NAME}" ]
+        if [ -f "$i"/"${NAME}" ] && ! [ -s "$i"/"${NAME}" ]
         then
             # File exists, but is empty
             echo "${VERSION}" > "$i"/"${NAME}"
@@ -522,6 +537,8 @@ upgrade(){
 
 ##############   MAIN   #################
 
+echo "$STARTMSG patching MISP..." && patch_misp
+
 # If a customer needs a analze column in misp
 echo "$STARTMSG Check if analyze column should be added..." && [ "$ADD_ANALYZE_COLUMN" = "yes" ] && add_analyze_column
 
@@ -545,10 +562,10 @@ echo "$STARTMSG Check if a dh file is required" && SSL_generate_DH
 
 ##### enable https config and disable http config ####
 echo "$STARTMSG Check if HTTPS MISP config should be enabled..."
-    ( [ -f /etc/apache2/ssl/cert.pem ] && [ ! -f /etc/apache2/sites-enabled/misp.ssl.conf ] ) && mv /etc/apache2/sites-enabled/misp.ssl /etc/apache2/sites-enabled/misp.ssl.conf
+    ( [ -f ${SSL_CERT} ] && [ ! -f /etc/apache2/sites-enabled/misp.ssl.conf ] ) && mv /etc/apache2/sites-enabled/misp.ssl /etc/apache2/sites-enabled/misp.ssl.conf
 
 echo "$STARTMSG Check if HTTP MISP config should be disabled..."
-    ( [ -f /etc/apache2/ssl/cert.pem ] && [ ! -f /etc/apache2/sites-enabled/misp.conf ] ) && mv /etc/apache2/sites-enabled/misp.conf /etc/apache2/sites-enabled/misp.http
+    ( [ -f ${SSL_CERT} ] && [ -f /etc/apache2/sites-enabled/misp.conf ] ) && mv /etc/apache2/sites-enabled/misp.conf /etc/apache2/sites-enabled/misp.http
 fi
 
 ##### check Redis
@@ -570,8 +587,8 @@ echo "$STARTMSG Initialize misp base config..." && init_misp_config
 echo "$STARTMSG Check if cake setup should be initialized..." && setup_via_cake_cli
 
 ##### Delete the initial decision file & reboot misp-server
-echo "$STARTMSG Check if misp-server is configured and file /var/www/MISP/app/Config/NOT_CONFIGURED exist"
-    [ -f /var/www/MISP/app/Config/NOT_CONFIGURED ] && echo "$STARTMSG delete init config file and reboot" && rm "/var/www/MISP/app/Config/NOT_CONFIGURED"
+echo "$STARTMSG Check if misp-server is configured and file ${MISP_APP_CONFIG_PATH}/NOT_CONFIGURED exist"
+    [ -f ${MISP_APP_CONFIG_PATH}/NOT_CONFIGURED ] && echo "$STARTMSG delete init config file and reboot" && rm "${MISP_APP_CONFIG_PATH}/NOT_CONFIGURED"
 
 # Disable MPM_EVENT Worker
 echo "$STARTMSG Deactivate Apache2 Event Worker" && a2dismod mpm_event
@@ -583,12 +600,12 @@ echo "$STARTMSG Upgrade if it is required..." && upgrade
 
 ##### Check permissions #####
     echo "$STARTMSG Configure MISP | Check permissions..."
-    #echo "$STARTMSG ... chown -R www-data.www-data /var/www/MISP..." && chown -R www-data.www-data /var/www/MISP
-    echo "$STARTMSG ... chown -R www-data.www-data /var/www/MISP..." && find /var/www/MISP -not -user www-data -exec chown www-data.www-data {} +
-    echo "$STARTMSG ... chmod -R 0750 /var/www/MISP..." && find /var/www/MISP -perm 550 -type f -exec chmod 0550 {} + && find /var/www/MISP -perm 770 -type d -exec chmod 0770 {} +
-    echo "$STARTMSG ... chmod -R g+ws /var/www/MISP/app/tmp..." && chmod -R g+ws /var/www/MISP/app/tmp
-    echo "$STARTMSG ... chmod -R g+ws /var/www/MISP/app/files..." && chmod -R g+ws /var/www/MISP/app/files
-    echo "$STARTMSG ... chmod -R g+ws /var/www/MISP/app/files/scripts/tmp" && chmod -R g+ws /var/www/MISP/app/files/scripts/tmp
+    #echo "$STARTMSG ... chown -R www-data.www-data ${MISP_BASE_PATH}..." && chown -R www-data.www-data ${MISP_BASE_PATH}
+    echo "$STARTMSG ... chown -R www-data.www-data ${MISP_BASE_PATH}..." && find ${MISP_BASE_PATH} -not -user www-data -exec chown www-data.www-data {} +
+    echo "$STARTMSG ... chmod -R 0750 ${MISP_BASE_PATH}..." && find ${MISP_BASE_PATH} -perm 550 -type f -exec chmod 0550 {} + && find ${MISP_BASE_PATH} -perm 770 -type d -exec chmod 0770 {} +
+    echo "$STARTMSG ... chmod -R g+ws ${MISP_APP_PATH}/tmp..." && chmod -R g+ws ${MISP_APP_PATH}/tmp
+    echo "$STARTMSG ... chmod -R g+ws ${MISP_APP_PATH}/files..." && chmod -R g+ws ${MISP_APP_PATH}/files
+    echo "$STARTMSG ... chmod -R g+ws ${MISP_APP_PATH}/files/scripts/tmp" && chmod -R g+ws ${MISP_APP_PATH}/files/scripts/tmp
 
 # delete pid file
 [ -f $ENTRYPOINT_PID_FILE ] && rm $ENTRYPOINT_PID_FILE
