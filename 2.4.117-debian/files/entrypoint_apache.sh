@@ -178,103 +178,22 @@ add_analyze_column(){
 }
 
 patch_misp() {
-    local F
+    local patch
 
-    F=${MISP_BASE_PATH}/INSTALL/MYSQL.sql
-    if ! [ -f "${F}.orig" ]; then
-        cp "${F}" "${F}.orig"
-        sed\
-            -e 's/^[[:blank:]]*CREATE TABLE `/CREATE TABLE IF NOT EXISTS `/'\
-            -e 's/^[[:blank:]]*INSERT INTO /INSERT IGNORE INTO /'\
-            "${F}.orig" >"${F}"
+    if [ -f /patches.d/patched ]; then
+        echo "$STARTMSG patching MISP...already patched"
+    else
+        touch /patches.d/patched
+        pushd $MISP_BASE_PATH
+        for patch in /patches.d/*.sh; do
+            "${patch}"
+        done
+        for patch in /patches.d/*.patch; do
+            patch -p1 <"${patch}"
+        done
+        popd
+        echo "$STARTMSG patching MISP...finished"
     fi
-
-    pushd $MISP_BASE_PATH
-    patch -p1 <<'EOF'
-diff -ru MISP.orig/app/Config/core.default.php MISP/app/Config/core.default.php
---- MISP.orig/app/Config/core.default.php	2020-04-20 21:49:57.000000000 +0000
-+++ MISP/app/Config/core.default.php	2020-04-24 17:40:53.077253000 +0000
-@@ -97,6 +97,9 @@
-  * And uncomment the App.baseUrl below:
-  */
- //Configure::write('App.baseUrl', env('SCRIPT_NAME'));
-+if (env('MISP_URL')) {
-+	Configure::write('App.fullBaseUrl', env('MISP_URL'));
-+}
- 
- /**
-  * Uncomment the define below to use CakePHP prefix routes.
-diff -ru MISP.orig/app/Lib/cakephp/lib/Cake/bootstrap.php MISP/app/Lib/cakephp/lib/Cake/bootstrap.php
---- MISP.orig/app/Lib/cakephp/lib/Cake/bootstrap.php	2020-04-20 21:50:21.000000000 +0000
-+++ MISP/app/Lib/cakephp/lib/Cake/bootstrap.php	2020-04-24 17:35:06.155497000 +0000
-@@ -155,6 +155,11 @@
-  * Full URL prefix
-  */
- if (!defined('FULL_BASE_URL')) {
-+	if (Configure::read('App.fullBaseUrl')) {
-+		define('FULL_BASE_URL', Configure::read('App.fullBaseUrl'));
-+	}
-+}
-+if (!defined('FULL_BASE_URL')) {
- 	$s = null;
- 	if (env('HTTPS')) {
- 		$s = 's';
-diff -ru MISP.orig/app/files/scripts/stix2/stix2misp.py MISP/app/files/scripts/stix2/stix2misp.py
---- MISP.orig/app/files/scripts/stix2/stix2misp.py	2020-04-20 21:49:57.000000000 +0000
-+++ MISP/app/files/scripts/stix2/stix2misp.py	2020-04-24 17:47:12.254098000 +0000
-@@ -24,7 +24,7 @@
- import re
- import stix2
- from stix2misp_mapping import *
--from collections import defaultdict
-+from collections import defaultdict, OrderedDict
- 
- _MISP_dir = "/".join([p for p in os.path.dirname(os.path.realpath(__file__)).split('/')[:-4]])
- _PyMISP_dir = '{_MISP_dir}/PyMISP'.format(_MISP_dir=_MISP_dir)
-@@ -107,7 +107,7 @@
-         try:
-             self.report[parsed_object['id'].split('--')[1]] = parsed_object
-         except AttributeError:
--            self.report = {parsed_object['id'].split('--')[1]: parsed_object}
-+            self.report = OrderedDict({parsed_object['id'].split('--')[1]: parsed_object})
- 
-     def _load_usual_object(self, parsed_object):
-         self.event[parsed_object._type][parsed_object['id'].split('--')[1]] = parsed_object
-@@ -130,12 +130,14 @@
- 
-     def build_from_STIX_with_report(self):
-         report_attributes = defaultdict(set)
-+        report_attributes['name'] = None
-         for ruuid, report in self.report.items():
-             try:
-                 report_attributes['orgs'].add(report.created_by_ref.split('--')[1])
-             except AttributeError:
-                 pass
--            report_attributes['name'].add(report.name)
-+            if report_attributes['name'] is None:
-+                report_attributes['name'] = report.name
-             if report.get('published'):
-                 report_attributes['published'].add(report.published)
-             if 'labels' in report:
-@@ -155,10 +157,12 @@
-             self.misp_event['Org'] = {'name': identity['name']}
-         if len(report_attributes['published']) == 1:
-             self.misp_event.publish_timestamp = self.getTimestampfromDate(report_attributes['published'].pop())
--        if len(report_attributes['name']) == 1:
--            self.misp_event.info = report_attributes['name'].pop()
-+        if report_attributes['name'] is None:
-+            self.misp_event.info = ("Imported with MISP import script for {} from {}."
-+                                    .format(self.stix_version, os.path.basename(self.filename)))
-         else:
--            self.misp_event.info = "Imported with MISP import script for {}.".format(self.stix_version)
-+            self.misp_event.info = report_attributes['name']
-+
-         for l in report_attributes['labels']:
-             self.misp_event.add_tag(l)
- 
-EOF
-    popd
-    echo "$STARTMSG patching MISP...finished"
 }
 
 change_php_vars(){
@@ -329,6 +248,9 @@ init_misp_config(){
 }
 
 setup_via_cake_cli(){
+    local Q
+    #Q=">/dev/null 2>&1"
+    Q=""
     [ -f "${DATABASE_CONFIG}"  ] || (echo "$STARTMSG File ${DATABASE_CONFIG} not found. Exit now." && exit 1)
     if [ -f "${MISP_APP_CONFIG_PATH}/NOT_CONFIGURED" ]; then
         echo "$STARTMSG Cake initializing started..."
@@ -336,129 +258,129 @@ setup_via_cake_cli(){
         sudo -E $CAKE userInit -q
         #AUTH_KEY=$(mysql -u $MYSQL_USER -p$MYSQL_PASSWORD -h $MYSQL_HOST $MYSQL_DATABASE -e "SELECT authkey FROM users;" | head -2| tail -1)
         # Setup some more MISP default via cake CLI
-        sudo >/dev/null 2>&1 $CAKE baseurl "$MISP_URL"
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.external_baseurl" "$MISP_URL"
+        sudo ${Q} $CAKE baseurl "$MISP_URL"
+        sudo ${Q} $CAKE Admin setSetting "MISP.external_baseurl" "$MISP_URL"
         # Tune global time outs
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Session.autoRegenerate" 1
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Session.timeout" 600
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Session.cookieTimeout" 3600
+        sudo ${Q} $CAKE Admin setSetting "Session.autoRegenerate" 1
+        sudo ${Q} $CAKE Admin setSetting "Session.timeout" 600
+        sudo ${Q} $CAKE Admin setSetting "Session.cookieTimeout" 3600
         # Enable GnuPG
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.email" "$SENDER_ADDRESS"
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/.gnupg"
+        sudo ${Q} $CAKE Admin setSetting "GnuPG.email" "$SENDER_ADDRESS"
+        sudo ${Q} $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/.gnupg"
         if [ -n "${MISP_PGP_PVTPASS}" ]; then
-            sudo >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.password" "${MISP_PGP_PVTPASS}"
+            sudo ${Q} $CAKE Admin setSetting "GnuPG.password" "${MISP_PGP_PVTPASS}"
         fi
         # Enable Enrichment set better timeouts
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_services_enable" true
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_services_url" "${MISP_MODULES_URL}"
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_hover_enable" true
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_timeout" 300
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_hover_timeout" 150
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_cve_advanced_enabled" true
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Enrichment_services_enable" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Enrichment_services_url" "${MISP_MODULES_URL}"
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Enrichment_hover_enable" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Enrichment_timeout" 300
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Enrichment_hover_timeout" 150
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Enrichment_cve_advanced_enabled" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
         # Enable Import modules set better timout
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_services_enable" true
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_services_url" "${MISP_MODULES_URL}"
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_services_port" "${MISP_MODULES_PORT}"
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_timeout" 300
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_ocr_enabled" true
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_csvimport_enabled" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Import_services_enable" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Import_services_url" "${MISP_MODULES_URL}"
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Import_services_port" "${MISP_MODULES_PORT}"
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Import_timeout" 300
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Import_ocr_enabled" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Import_csvimport_enabled" true
         # Enable modules set better timout
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_services_enable" true
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_services_url" "${MISP_MODULES_URL}"
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_services_port" "${MISP_MODULES_PORT}"
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_timeout" 300
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_pdfexport_enabled" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Export_services_enable" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Export_services_url" "${MISP_MODULES_URL}"
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Export_services_port" "${MISP_MODULES_PORT}"
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Export_timeout" 300
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Export_pdfexport_enabled" true
         # Enable installer org and tune some configurables
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.host_org_id" 1
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.email" "$SENDER_ADDRESS"
-        #sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.disable_emailing" true
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.contact" "$SENDER_ADDRESS"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.disablerestalert" true
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.showCorrelationsOnIndex" true
+        sudo ${Q} $CAKE Admin setSetting "MISP.host_org_id" 1
+        sudo ${Q} $CAKE Admin setSetting "MISP.email" "$SENDER_ADDRESS"
+        #sudo ${Q} $CAKE Admin setSetting "MISP.disable_emailing" true
+        sudo ${Q} $CAKE Admin setSetting "MISP.contact" "$SENDER_ADDRESS"
+        # sudo ${Q} $CAKE Admin setSetting "MISP.disablerestalert" true
+        # sudo ${Q} $CAKE Admin setSetting "MISP.showCorrelationsOnIndex" true
         # Provisional Cortex tunes
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_services_enable" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_services_url" "http://127.0.0.1"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_services_port" 9000
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_timeout" 120
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_services_url" "http://127.0.0.1"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_services_port" 9000
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_services_timeout" 120
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_services_authkey" ""
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_ssl_verify_peer" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_ssl_verify_host" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_ssl_allow_self_signed" true
+        sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_services_enable" false
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_services_url" "http://127.0.0.1"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_services_port" 9000
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_timeout" 120
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_services_url" "http://127.0.0.1"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_services_port" 9000
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_services_timeout" 120
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_services_authkey" ""
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_ssl_verify_peer" false
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_ssl_verify_host" false
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Cortex_ssl_allow_self_signed" true
         # Various plugin sightings settings
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Sightings_policy" 0
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Sightings_anonymise" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Sightings_range" 365
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Sightings_policy" 0
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Sightings_anonymise" false
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.Sightings_range" 365
         # Plugin CustomAuth tuneable
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.CustomAuth_disable_logout" false
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.CustomAuth_disable_logout" false
         # RPZ Plugin settings
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_policy" "DROP"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_walled_garden" "127.0.0.1"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_serial" "\$date00"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_refresh" "2h"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_retry" "30m"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_expiry" "30d"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_minimum_ttl" "1h"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_ttl" "1w"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_ns" "localhost."
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_ns_alt" ""
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.RPZ_email" "$SENDER_ADDRESS"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_policy" "DROP"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_walled_garden" "127.0.0.1"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_serial" "\$date00"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_refresh" "2h"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_retry" "30m"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_expiry" "30d"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_minimum_ttl" "1h"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_ttl" "1w"
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_ns" "localhost."
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_ns_alt" ""
+        # sudo ${Q} $CAKE Admin setSetting "Plugin.RPZ_email" "$SENDER_ADDRESS"
         # Force defaults to make MISP Server Settings less RED
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.language" "eng"
-        #sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.proposals_block_attributes" false
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.default_event_tag_collection" "None"
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.proposals_block_attributes" "true"
+        sudo ${Q} $CAKE Admin setSetting "MISP.language" "eng"
+        #sudo ${Q} $CAKE Admin setSetting "MISP.proposals_block_attributes" false
+        sudo ${Q} $CAKE Admin setSetting "MISP.default_event_tag_collection" "None"
+        sudo ${Q} $CAKE Admin setSetting "MISP.proposals_block_attributes" "true"
 
         # Redis block
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_host" "$REDIS_FQDN" 
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_port" 6379
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_database" 13
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_password" ""
-        sudo >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.ZeroMQ_redis_host" "$REDIS_FQDN"
+        sudo ${Q} $CAKE Admin setSetting "MISP.redis_host" "$REDIS_FQDN" 
+        sudo ${Q} $CAKE Admin setSetting "MISP.redis_port" "${REDIS_PORT:-6379}"
+        sudo ${Q} $CAKE Admin setSetting "MISP.redis_database" "${REDIS_DATABASE:-13}"
+        sudo ${Q} $CAKE Admin setSetting "MISP.redis_password" "${REDIS_PW:-}"
+        sudo ${Q} $CAKE Admin setSetting "Plugin.ZeroMQ_redis_host" "$REDIS_FQDN"
 
         # Force defaults to make MISP Server Settings less YELLOW
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.ssdeep_correlation_threshold" 40
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.extended_alert_subject" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.default_event_threat_level" 4
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.newUserText" "Dear new MISP user,\\n\\nWe would hereby like to welcome you to the \$org MISP community.\\n\\n Use the credentials below to log into MISP at \$misp, where you will be prompted to manually change your password to something of your own choice.\\n\\nUsername: \$username\\nPassword: \$password\\n\\nIf you have any questions, don't hesitate to contact us at: \$contact.\\n\\nBest regards,\\nYour \$org MISP support team"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.passwordResetText" "Dear MISP user,\\n\\nA password reset has been triggered for your account. Use the below provided temporary password to log into MISP at \$misp, where you will be prompted to manually change your password to something of your own choice.\\n\\nUsername: \$username\\nYour temporary password: \$password\\n\\nIf you have any questions, don't hesitate to contact us at: \$contact.\\n\\nBest regards,\\nYour \$org MISP support team"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.enableEventBlacklisting" true
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.enableOrgBlacklisting" true
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.log_client_ip" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.log_auth" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.disableUserSelfManagement" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.block_event_alert" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.block_event_alert_tag" "no-alerts=\"true\""
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.block_old_event_alert" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.block_old_event_alert_age" ""
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.incoming_tags_disabled_by_default" false
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.footermidleft" "This is an initial install"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.footermidright" "Please configure and harden accordingly"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.welcome_text_top" "Initial Install, please configure"
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "MISP.welcome_text_bottom" "Welcome to MISP, change this message in MISP Settings"
+        # sudo ${Q} $CAKE Admin setSetting "MISP.ssdeep_correlation_threshold" 40
+        # sudo ${Q} $CAKE Admin setSetting "MISP.extended_alert_subject" false
+        # sudo ${Q} $CAKE Admin setSetting "MISP.default_event_threat_level" 4
+        # sudo ${Q} $CAKE Admin setSetting "MISP.newUserText" "Dear new MISP user,\\n\\nWe would hereby like to welcome you to the \$org MISP community.\\n\\n Use the credentials below to log into MISP at \$misp, where you will be prompted to manually change your password to something of your own choice.\\n\\nUsername: \$username\\nPassword: \$password\\n\\nIf you have any questions, don't hesitate to contact us at: \$contact.\\n\\nBest regards,\\nYour \$org MISP support team"
+        # sudo ${Q} $CAKE Admin setSetting "MISP.passwordResetText" "Dear MISP user,\\n\\nA password reset has been triggered for your account. Use the below provided temporary password to log into MISP at \$misp, where you will be prompted to manually change your password to something of your own choice.\\n\\nUsername: \$username\\nYour temporary password: \$password\\n\\nIf you have any questions, don't hesitate to contact us at: \$contact.\\n\\nBest regards,\\nYour \$org MISP support team"
+        # sudo ${Q} $CAKE Admin setSetting "MISP.enableEventBlacklisting" true
+        # sudo ${Q} $CAKE Admin setSetting "MISP.enableOrgBlacklisting" true
+        # sudo ${Q} $CAKE Admin setSetting "MISP.log_client_ip" false
+        # sudo ${Q} $CAKE Admin setSetting "MISP.log_auth" false
+        # sudo ${Q} $CAKE Admin setSetting "MISP.disableUserSelfManagement" false
+        # sudo ${Q} $CAKE Admin setSetting "MISP.block_event_alert" false
+        # sudo ${Q} $CAKE Admin setSetting "MISP.block_event_alert_tag" "no-alerts=\"true\""
+        # sudo ${Q} $CAKE Admin setSetting "MISP.block_old_event_alert" false
+        # sudo ${Q} $CAKE Admin setSetting "MISP.block_old_event_alert_age" ""
+        # sudo ${Q} $CAKE Admin setSetting "MISP.incoming_tags_disabled_by_default" false
+        # sudo ${Q} $CAKE Admin setSetting "MISP.footermidleft" "This is an initial install"
+        # sudo ${Q} $CAKE Admin setSetting "MISP.footermidright" "Please configure and harden accordingly"
+        # sudo ${Q} $CAKE Admin setSetting "MISP.welcome_text_top" "Initial Install, please configure"
+        # sudo ${Q} $CAKE Admin setSetting "MISP.welcome_text_bottom" "Welcome to MISP, change this message in MISP Settings"
         
         # Force defaults to make MISP Server Settings less GREEN
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Security.password_policy_length" 16
-        # sudo >/dev/null 2>&1 $CAKE Admin setSetting "Security.password_policy_complexity" '/^((?=.*\d)|(?=.*\W+))(?![\n])(?=.*[A-Z])(?=.*[a-z]).*$|.{16,}/'
+        # sudo ${Q} $CAKE Admin setSetting "Security.password_policy_length" 16
+        # sudo ${Q} $CAKE Admin setSetting "Security.password_policy_complexity" '/^((?=.*\d)|(?=.*\W+))(?![\n])(?=.*[A-Z])(?=.*[a-z]).*$|.{16,}/'
 
         # Set MISP Live
-        sudo >/dev/null 2>&1 $CAKE Live 1
+        sudo ${Q} $CAKE Live 1
         # Update the galaxies…
-        sudo >/dev/null 2>&1 $CAKE Admin updateGalaxies
+        sudo ${Q} $CAKE Admin updateGalaxies
         # Updating the taxonomies…
-        sudo >/dev/null 2>&1 $CAKE Admin updateTaxonomies
+        sudo ${Q} $CAKE Admin updateTaxonomies
         # Updating the warning lists…
-        # sudo >/dev/null 2>&1 $CAKE Admin updateWarningLists
+        # sudo ${Q} $CAKE Admin updateWarningLists
         # Updating the notice lists…
-        # sudo >/dev/null 2>&1 $CAKE Admin updateNoticeLists
+        # sudo ${Q} $CAKE Admin updateNoticeLists
         #curl --header "Authorization: $AUTH_KEY" --header "Accept: application/json" --header "Content-Type: application/json" -k -X POST https://127.0.0.1/noticelists/update
         
         # Updating the object templates…
-        # sudo >/dev/null 2>&1 $CAKE Admin updateObjectTemplates
+        # sudo ${Q} $CAKE Admin updateObjectTemplates
         #curl --header "Authorization: $AUTH_KEY" --header "Accept: application/json" --header "Content-Type: application/json" -k -X POST https://127.0.0.1/objectTemplates/update
     else
         echo "$STARTMSG Cake setup: MISP is configured."

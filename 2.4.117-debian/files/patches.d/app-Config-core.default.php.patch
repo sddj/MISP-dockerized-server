@@ -1,0 +1,13 @@
+diff -ru MISP.orig/app/Config/core.default.php MISP/app/Config/core.default.php
+--- MISP.orig/app/Config/core.default.php	2020-04-20 21:49:57.000000000 +0000
++++ MISP/app/Config/core.default.php	2020-04-24 17:40:53.077253000 +0000
+@@ -97,6 +97,9 @@
+  * And uncomment the App.baseUrl below:
+  */
+ //Configure::write('App.baseUrl', env('SCRIPT_NAME'));
++if (env('MISP_URL')) {
++	Configure::write('App.fullBaseUrl', env('MISP_URL'));
++}
+ 
+ /**
+  * Uncomment the define below to use CakePHP prefix routes.

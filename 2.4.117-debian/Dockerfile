@@ -339,6 +339,9 @@ RUN apt-get install -y \
     COPY files/healthcheck.sh /
     HEALTHCHECK --interval=1m --timeout=45s --retries=3 CMD ["/healthcheck.sh"]
 
+# Patches
+    COPY files/patches.d /patches.d
+
 # Entrypoints
     COPY files/entrypoint_apache.sh /
     COPY files/entrypoint_cron.sh /

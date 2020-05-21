@@ -5,7 +5,7 @@ if [ -z "${repo}" ]; then
     exit 1
 fi
 now=$(date +%Y%m%d)
-last=$(aws ecr list-images --repository-name "$1" | jq -Mr '.imageIds[].imageTag' | grep "^$now" | sort | tail -n 1)
+last=$(aws ecr list-images --repository-name "$1" | jq -Mr '.imageIds[].imageTag' | grep "^$now" | sort -t . -k 2n | tail -n 1)
 if [ -z "$last" ]; then
   echo "${repo}:${now}.1"
 else
