@@ -1,6 +1,7 @@
+diff -ru var/www/MISP.orig/app/Config/bootstrap.default.php var/www/MISP/app/Config/bootstrap.default.php
 --- var/www/MISP.orig/app/Config/bootstrap.default.php	2020-09-11 13:52:08.000000000 +0000
-+++ var/www/MISP/app/Config/bootstrap.default.php	2020-09-11 18:14:12.607125000 +0000
-@@ -111,13 +111,20 @@
++++ var/www/MISP/app/Config/bootstrap.default.php	2020-09-11 20:28:06.210711000 +0000
+@@ -111,11 +111,14 @@
   * Configure base URL for CakePHP
   */
  if (Configure::read('MISP.baseurl')) {
@@ -10,20 +11,15 @@
  		if (isset($matches['base'])) {
  			Configure::write('App.base', $matches['base']);
  			Configure::write('App.fullBaseUrl', $matches['fullBaseUrl']);
-+			$x = file_get_contents('/patches.d/php.log'); $x = $x.'Updated App.base to '.$matches['base'].'\n'.'Updated App.fullBaseUrl to '.$matches['fullBaseUrl'].'\n'; file_put_contents('/patches.d/php.log', $x);
-+		} else  {
-+			$x = file_get_contents('/patches.d/php.log'); $x = $x.'MISP.baseurl('.Configure::read('MISP.baseurl').') did not have a base\n'; file_put_contents('/patches.d/php.log', $x);
++		} else if (isset($matches['fullBaseUrl'])) {
++			Configure::write('App.base', '');
++			Configure::write('App.fullBaseUrl', $matches['fullBaseUrl']);
  		}
-+	} else {
-+		$x = file_get_contents('/patches.d/php.log'); $x = $x.'MISP.baseurl('.Configure::read('MISP.baseurl').') did not match the regex\n'; file_put_contents('/patches.d/php.log', $x);
  	}
-+} else  {
-+	$x = file_get_contents('/patches.d/php.log'); $x = $x.'MISP.baseurl is not set\n'; file_put_contents('/patches.d/php.log', $x);
  }
- /*
-  * Plugins need to be loaded manually, you can either load them one by one or all of them in a single call
---- var/www/MISP.orig/app/Model/Server.php	2020-09-11 15:22:18.501363000 +0000
-+++ var/www/MISP/app/Model/Server.php	2020-09-11 15:40:30.497749000 +0000
+diff -ru var/www/MISP.orig/app/Model/Server.php var/www/MISP/app/Model/Server.php
+--- var/www/MISP.orig/app/Model/Server.php	2020-09-11 13:52:09.000000000 +0000
++++ var/www/MISP/app/Model/Server.php	2020-09-11 20:18:08.240530000 +0000
 @@ -3577,11 +3577,15 @@
          if ($this->testForEmpty($value) !== true) {
              return $this->testForEmpty($value);
