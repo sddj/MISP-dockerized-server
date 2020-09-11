@@ -22,6 +22,11 @@ RUN locale-gen ${LANG}
 
 #########################    START  MISP Guide
 
+# Install additional SSL certificates
+RUN mkdir -p /usr/local/share/ca-certificates/extra
+COPY ca-certs/* /usr/local/share/ca-certificates/extra/
+RUN /usr/sbin/update-ca-certificates
+
 # 1/ Minimal Ubuntu install 
 # based on: https://raw.githubusercontent.com/MISP/MISP/2.4/INSTALL/INSTALL.sh
 # -------------------------
@@ -55,6 +60,7 @@ RUN sudo apt update; \
     php-gd;
 
 ##### Install MISP Core
+ARG VERSION=""
 ARG MISP_ARG=${VERSION}
 ENV MISP_TAG="${MISP_ARG}"
 ENV WWW_USER="www-data"
@@ -64,7 +70,7 @@ ENV SUDO_WWW="sudo -H -u ${WWW_USER}"
 RUN set -eu; \
     git clone https://github.com/MISP/MISP.git ${PATH_TO_MISP}; \
     cd ${PATH_TO_MISP}; \
-    git checkout tags/v2.4.125; \
+    git checkout tags/v${VERSION:-1.2.125}; \
     chown -R ${WWW_USER}:${WWW_USER} ${PATH_TO_MISP}; \
     # Make git ignore filesystem permission differences
     cd ${PATH_TO_MISP}; $SUDO_WWW git config core.filemode false; \
@@ -219,6 +225,9 @@ COPY --chown=www-data:www-data files/usr/local/bin/misp_cron.sh /usr/local/bin/
 # Healthcheck
 COPY files/healthcheck.sh /
 HEALTHCHECK --interval=1m --timeout=45s --retries=3 CMD ["/healthcheck.sh"]
+
+# Patches
+COPY files/patches.d /patches.d
 
 # Entrypoints
 COPY files/entrypoint_apache.sh /

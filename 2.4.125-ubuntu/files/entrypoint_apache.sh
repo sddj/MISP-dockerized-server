@@ -17,6 +17,44 @@ ENTRYPOINT_PID_FILE="/entrypoint_apache.install"
 # treat everything except -- as exec cmd
 [ "${1:0:2}" != "--" ] && exec "$@"
 
+if [ -z "${MISP_MODULES_URL}" ]; then
+    MISP_MODULES_URL="http://misp-modules"
+    MISP_MODULES_PORT="6666"
+else
+    # http://$host:$port => MISP_MODULES_URL=http://$host, MISP_MODULES_PORT=$port
+    # http://$host => MISP_MODULES_URL=http://$host, MISP_MODULES_PORT=80
+    # https://$host:$port => MISP_MODULES_URL=https://$host, MISP_MODULES_PORT=$port
+    # https://$host => MISP_MODULES_URL=https://$host, MISP_MODULES_PORT=443
+    # $host:$port => MISP_MODULES_URL=http://$host, MISP_MODULES_PORT=$port
+    # $host => MISP_MODULES_URL=http://$host, MISP_MODULES_PORT=6666
+    URL="${MISP_MODULES_URL}"
+    case "${URL}" in
+        http://*)
+            URL="$(echo "${URL}" | sed -e 's,http://,,')"
+            MISP_MODULES_PROTO="http://"
+            MISP_MODULES_PORT="80"
+            ;;
+        https:*)
+            URL="$(echo "${URL}" | sed -e 's,https://,,')"
+            MISP_MODULES_PROTO="https://"
+            MISP_MODULES_PORT="443"
+            ;;
+        *)
+            MISP_MODULES_PROTO="http://"
+            MISP_MODULES_PORT="6666"
+            ;;
+    esac
+    case "${URL}" in
+        *:*)
+            MISP_MODULES_URL="${MISP_MODULES_PROTO}$(echo "${URL}" | sed -e 's,:.*,,')"
+            MISP_MODULES_PORT="$(echo "${URL}" | sed -e 's,.*:,,')"
+            ;;
+        *)
+            MISP_MODULES_URL="${MISP_MODULES_PROTO}${URL}"
+            ;;
+    esac
+fi
+
 MISP_BASE_PATH=/var/www/MISP
 MISP_APP_PATH=/var/www/MISP/app
 MISP_APP_CONFIG_PATH=$MISP_APP_PATH/Config
@@ -32,12 +70,11 @@ PID_CERT_CREATER="/etc/apache2/ssl/SSL_create.pid"
 
 # defaults
 
-[ -z "$PGP_ENABLE" ] && PGP_ENABLE=false
-[ -z "$SMIME_ENABLE" ] && SMIME_ENABLE=false
 ( [ -z "$MISP_URL" ] && [ -z "$MISP_FQDN" ] ) && echo "Please set 'MISP_FQDN' or 'MISP_URL' environment variable in docker-compose.override.yml file for misp-server!!!" && exit
 ( [ -z "$MISP_URL" ] && [ ! -z "$MISP_FQDN" ] ) && MISP_URL="https://$(echo "$MISP_FQDN"|cut -d '/' -f 3)"
-[ -z "$PGP_ENABLE" ] && PGP_ENABLE=0
-[ -z "$SMIME_ENABLE" ] && SMIME_ENABLE=0
+[ -z "$PGP_ENABLE" ] && PGP_ENABLE=n
+[ -z "$SMIME_ENABLE" ] && SMIME_ENABLE=n
+[ -z "$HTTPS_ENABLE" ] && HTTPS_ENABLE=y
 [ -z "$MYSQL_HOST" ] && MYSQL_HOST=localhost
 [ -z "$MYSQL_PORT" ] && MYSQL_PORT=3306
 [ -z "$MYSQL_USER" ] && MYSQL_USER=misp
@@ -55,24 +92,63 @@ PID_CERT_CREATER="/etc/apache2/ssl/SSL_create.pid"
 [ -z "$REDIS_FQDN" ] && REDIS_FQDN=localhost
 
 
+patch_misp() {
+    local patch
+
+    if [ -f /patches.d/patched ]; then
+        echo "$STARTMSG patching MISP...already patched"
+    else
+        touch /patches.d/patched
+        pushd $MISP_BASE_PATH
+        for patch in $(ls -1 /patches.d/*.sh 2>/dev/null); do
+            "${patch}"
+        done
+        for patch in $(ls -1 /patches.d/*.patch 2>/dev/null); do
+            patch -p0 <"${patch}"
+        done
+        popd
+        echo "$STARTMSG patching MISP...finished"
+    fi
+}
+
 init_pgp(){
-    local FOLDER="/var/www/MISP/.gnupgp/public.key"
+    local FOLDER="${MISP_BASE_PATH}/.gnupgp"
     
     if [ ! $PGP_ENABLE == "y" ]; then
         # if pgp should not be activated return
         echo "$STARTMSG PGP should not be activated."
         return
-    elif [ ! -f "$FOLDER" ]; then
+    fi
+    if [ ! -f ${FOLDER}/private.key ] && [ -n "${MISP_PGP_PRIVATE}" ]; then
+        [ -d ${FOLDER} ] || mkdir -p ${FOLDER}
+        echo "${MISP_PGP_PRIVATE}" >${FOLDER}/private.key
+    fi
+    if [ ! -f ${FOLDER}/public.key ] && [ -n "${MISP_PGP_PUBLIC}" ]; then
+        [ -d ${FOLDER} ] || mkdir -p ${FOLDER}
+        echo "${MISP_PGP_PUBLIC}" >${FOLDER}/public.key
+    fi
+    if [ ! -f "$FOLDER/public.key" ]; then
         # if secring.pgp do not exists return
-        echo "$STARTMSG No public PGP key found in $FOLDER."
-        return
+        echo "$STARTMSG GNU PGP Key isn't existing. Please add them. sleep 120 seconds"
+        sleep 120
+        exit 1
     else
-        PGP_ENABLE=true
         echo "$STARTMSG ###### PGP Key exists and copy it to MISP webroot #######"
+        
+        chown -R www-data:www-data ${FOLDER}
+        chmod 700 ${FOLDER}
+        chmod 400 ${FOLDER}/*
+
+        if [ -f ${FOLDER}/private.key ] && [ -n "${MISP_PGP_PVTPASS}" ]; then
+            echo "$STARTMSG PGP Adding ${FOLDER}/private.key to the key ring..."
+            echo "${MISP_PGP_PVTPASS}" >pass-file.$$
+            GNUPGHOME=${FOLDER} gpg --batch --pinentry-mode=loopback --passphrase-file=pass-file.$$ --import ${FOLDER}/private.key
+            rm pass-file.$$
+        fi
 
         # Copy public key to the right place
-        [ -f /var/www/MISP/.gnupg/public.key ] || echo "$STARTMSG GNU PGP Key isn't existing. Please add them. sleep 120 seconds" && sleep 120 && exit 1
-        [ -f /var/www/MISP/.gnupg/public.key ] && sudo -u www-data sh -c "cp /var/www/MISP/.gnupg/public.key /var/www/MISP/app/webroot/gpg.asc"
+        [ -f ${MISP_APP_PATH}/webroot/gpg.asc ] && rm ${MISP_APP_PATH}/webroot/gpg.asc
+        sudo -u www-data sh -c "cp ${FOLDER}/public.key ${MISP_APP_PATH}/webroot/gpg.asc"
     fi
 }
 
@@ -87,7 +163,6 @@ init_smime(){
         echo "$STARTMSG No Certificate found in $FOLDER."
         return
     else
-        SMIME_ENABLE=1
         echo "$STARTMSG ###### S/MIME Cert exists and copy it to MISP webroot #######" 
         ### Set permissions
         chown www-data:www-data /var/www/MISP/.smime
@@ -147,7 +222,7 @@ init_misp_config(){
         sed -i "s/db\s*password/$MYSQL_PASSWORD/" $DATABASE_CONFIG
 
         echo "$STARTMSG Configure MISP | Set MISP-Url in config.php"
-        sed -i "s_.*baseurl.*=>.*_    \'baseurl\' => \'$MISP_URL\',_" $MISP_CONFIG
+        sed -i "s_.*baseurl.*=>.*_    'baseurl' => '$MISP_URL',_" $MISP_CONFIG
         #sudo $CAKE baseurl "$MISP_URL"
 
         echo "$STARTMSG Configure MISP | Set Email in config.php"
@@ -177,7 +252,7 @@ init_misp_config(){
 }
 
 setup_python_venv_CAKE(){
-    if grep -q "http://misp-modules" /var/www/MISP/app/Config/config.php && grep -q "/var/www/MISP/venv/bin/python" /var/www/MISP/app/Config/config.php; then
+    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/var/www/MISP/venv/bin/python" /var/www/MISP/app/Config/config.php; then
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting python venv via CAKE..."
@@ -187,14 +262,14 @@ setup_python_venv_CAKE(){
 }
 
 setup_redis_CAKE(){
-    if grep -q "http://misp-modules" /var/www/MISP/app/Config/config.php && grep -q "/var/www/MISP/venv/bin/python" /var/www/MISP/app/Config/config.php; then
+    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/var/www/MISP/venv/bin/python" /var/www/MISP/app/Config/config.php; then
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting Redis settings via CAKE..."
         sudo $CAKE Admin setSetting "MISP.redis_host" "$REDIS_FQDN" 
-        sudo $CAKE Admin setSetting "MISP.redis_port" 6379
-        sudo $CAKE Admin setSetting "MISP.redis_database" 13
-        sudo $CAKE Admin setSetting "MISP.redis_password" ""
+        sudo $CAKE Admin setSetting "MISP.redis_port" "${REDIS_PORT:-6379}"
+        sudo $CAKE Admin setSetting "MISP.redis_database" "${REDIS_DATABASE:-13}"
+        sudo $CAKE Admin setSetting "MISP.redis_password" "${REDIS_PW:-}"
         sudo $CAKE Admin setSetting "Plugin.ZeroMQ_redis_host" "$REDIS_FQDN"
     fi
 }
@@ -203,32 +278,33 @@ setup_misp_modules_CAKE(){
     #if [[ ! -e $MISP_APP_CONFIG_PATH/core.php ]]; then
 
     ### We assume that both the python venv and misp modules are unset - if not, the instance was allready configured 
-    if grep -q "http://misp-modules" /var/www/MISP/app/Config/config.php && grep -q "/var/www/MISP/venv/bin/python" /var/www/MISP/app/Config/config.php; then
+    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/var/www/MISP/venv/bin/python" /var/www/MISP/app/Config/config.php; then
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting MISP-Modules settings via CAKE..."
         # Enable Enrichment 
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_url" "${MISP_MODULES_URL}"
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
         sudo $CAKE Admin setSetting "Plugin.Enrichment_services_enable" true
         sudo $CAKE Admin setSetting "Plugin.Enrichment_hover_enable" true
         sudo $CAKE Admin setSetting "Plugin.Enrichment_timeout" 300
         sudo $CAKE Admin setSetting "Plugin.Enrichment_hover_timeout" 150
-        #sudo $CAKE Admin setSetting "Plugin.Enrichment_cve_enabled" true
-        #sudo $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_url" "http://misp-modules"
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_port" 6666
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_cve_advanced_enabled" true
+        sudo $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
         # Enable Import modules set better timout
+        sudo $CAKE Admin setSetting "Plugin.Import_services_url" "${MISP_MODULES_URL}"
+        sudo $CAKE Admin setSetting "Plugin.Import_services_port" "${MISP_MODULES_PORT}"
         sudo $CAKE Admin setSetting "Plugin.Import_services_enable" true
-        sudo $CAKE Admin setSetting "Plugin.Import_services_url" "http://misp-modules"
-        sudo $CAKE Admin setSetting "Plugin.Import_services_port" 6666
         sudo $CAKE Admin setSetting "Plugin.Import_timeout" 300
         #sudo $CAKE Admin setSetting "Plugin.Import_ocr_enabled" true
         #sudo $CAKE Admin setSetting "Plugin.Import_csvimport_enabled" true
         # Enable modules set better timout
+        sudo $CAKE Admin setSetting "Plugin.Export_services_url" "${MISP_MODULES_URL}"
+        sudo $CAKE Admin setSetting "Plugin.Export_services_port" "${MISP_MODULES_PORT}"
         sudo $CAKE Admin setSetting "Plugin.Export_services_enable" true
-        sudo $CAKE Admin setSetting "Plugin.Export_services_url" "http://misp-modules"
-        sudo $CAKE Admin setSetting "Plugin.Export_services_port" 6666
         sudo $CAKE Admin setSetting "Plugin.Export_timeout" 300
         #sudo $CAKE Admin setSetting "Plugin.Export_pdfexport_enabled" true
+        sudo $CAKE Admin setSetting "Plugin.Cortex_services_enable" false
     fi
 }
 
@@ -253,10 +329,17 @@ SSL_generate_DH(){
     echo # add an echo command because if no command is done busybox (alpine sh) won't continue the script
 }
 
+check_misp_modules(){
+    while ! curl "${MISP_MODULES_URL}:${MISP_MODULES_PORT}/modules" >/dev/null 2>&1; do
+        sleep 5
+    done
+}
+
 check_mysql(){
     # Test when MySQL is ready    
 
     # Test if entrypoint_local_mariadb.sh is ready
+    if [ "${MYSQL_HOST}" == localhost ]; then
     sleep 5
     while (true)
     do
@@ -269,11 +352,16 @@ check_mysql(){
         fi
         sleep 5
     done
+    fi
 
     # wait for Database come ready
     isDBup () {
-        echo "SHOW STATUS" | $MYSQLCMD 1>/dev/null
+        echo "SHOW STATUS" | $MYSQLCMD 1>/dev/null 2>&1
         echo $?
+    }
+
+    doesDBexist () {
+        echo "SELECT * FROM information_schema.tables WHERE table_schema = 'misp' AND table_name = 'logs' LIMIT 1;" | $MYSQLCMD
     }
 
     RETRY=100
@@ -285,8 +373,13 @@ check_mysql(){
     if [ $RETRY -le 0 ]; then
         >&2 echo "Error: Could not connect to Database on $MYSQL_HOST:$MYSQL_PORT"
         exit 1
+    elif [ -z "$(doesDBexist)" ]; then
+        echo "$STARTMSG ... importing MySQL scheme..."
+        $MYSQLCMD < /var/www/MISP/INSTALL/MYSQL.sql
+        echo "$STARTMSG MySQL import...finished"
     fi
 
+    
 }
 
 check_redis(){
@@ -295,7 +388,7 @@ check_redis(){
     do
         [ "$(redis-cli -h "$REDIS_FQDN" ping)" == "PONG" ] && break;
         echo "$STARTMSG Wait for Redis..."
-        sleep 2WWW_USER
+        sleep 2
     done
 }
 
@@ -305,8 +398,9 @@ upgrade(){
         if [ ! -f "$i"/"${NAME}" ] 
         then
             # File not exist and now it will be created
+            [ -d "$i" ] || mkdir -p "$i"
             echo "${VERSION}" > "$i"/"${NAME}"
-        elif [ ! -f "$i"/"${NAME}" ] && [ -z "$(cat "$i"/"${NAME}")" ]
+        elif [ -f "$i"/"${NAME}" ] && [ -z "$(cat "$i"/"${NAME}")" ]
         then
             # File exists, but is empty
             echo "${VERSION}" > "$i"/"${NAME}"
@@ -353,6 +447,8 @@ upgrade(){
 
 ##############   MAIN   #################
 
+echo "$STARTMSG Apply patches ..." && patch_misp
+
 # If a customer needs a analze column in misp
 echo "$STARTMSG Check if analyze column should be added..." && [ "$ADD_ANALYZE_COLUMN" == "yes" ] && add_analyze_column
 
@@ -365,6 +461,9 @@ echo "$STARTMSG Check if PGP should be enabled...." && init_pgp
 
 echo "$STARTMSG Check if SMIME should be enabled..." && init_smime
 
+if [ ! "${HTTPS_ENABLE}" == "y" ]; then
+    echo "$STARTMSG HTTPS should not be activated."
+else
 ##### create a cert if it is required
 echo "$STARTMSG Check if a cert is required..." && create_ssl_cert
 
@@ -377,12 +476,16 @@ echo "$STARTMSG Check if HTTPS MISP config should be enabled..."
 
 echo "$STARTMSG Check if HTTP MISP config should be disabled..."
     ( [ -f /etc/apache2/ssl/cert.pem ] && [ ! -f /etc/apache2/sites-enabled/misp.conf ] ) && mv /etc/apache2/sites-enabled/misp.conf /etc/apache2/sites-enabled/misp.http
+fi
 
 ##### check Redis
 echo "$STARTMSG Check if Redis is ready..." && check_redis
 
 ##### check MySQL
 echo "$STARTMSG Check if MySQL is ready..." && check_mysql
+
+##### check misp-modules
+echo "$STARTMSG Check if misp-modules is ready..." && check_misp_modules
 
 ##### initialize MISP-Server
 echo "$STARTMSG Initialize misp base config..." && init_misp_config
@@ -406,6 +509,19 @@ echo "$STARTMSG Deactivate Apache2 Event Worker" && a2dismod mpm_event
 # check volumes and upgrade if it is required
 echo "$STARTMSG Upgrade if it is required..." && upgrade
 
+sudo $CAKE Admin setSetting "MISP.external_baseurl" "$MISP_URL"
+sudo $CAKE Admin setSetting "MISP.language" "${MISP_LANG:-eng}"
+sudo $CAKE Admin setSetting "MISP.default_event_tag_collection" "${MISP_DETC:-}"
+sudo $CAKE Admin setSetting "MISP.proposals_block_attributes" "${MISP_PBA:-true}"
+sudo $CAKE Admin setSetting "GnuPG.email" "$SENDER_ADDRESS"
+sudo $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/.gnupg"
+if [ -n "${MISP_PGP_PVTPASS}" ]; then sudo $CAKE Admin setSetting "GnuPG.password" "${MISP_PGP_PVTPASS}"; fi
+sudo $CAKE Admin updateGalaxies
+sudo $CAKE Admin updateTaxonomies
+sudo $CAKE Admin updateWarningLists
+sudo $CAKE Admin updateNoticeLists
+#sudo $CAKE Admin updateObjectTemplates
+sudo $CAKE Live 1
 
 ##### Check permissions #####
 echo "$STARTMSG Configure MISP | Check if permissions are still ok..."
@@ -440,7 +556,6 @@ Congratulations!
 Your MISP-dockerized server has been successfully booted.
 __WELCOME__
 
-sudo /var/www/MISP/app/Console/cake Admin setSetting "MISP.python_bin" "/var/www/MISP/venv/bin/python"
 ##### execute apache
 #[ "$CMD_APACHE" != "none" ] && start_apache "$CMD_APACHE"
 #[ "$CMD_APACHE" == "none" ] && start_apache

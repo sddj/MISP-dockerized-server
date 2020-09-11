@@ -1,0 +1,13 @@
+#!/bin/sh
+repo=$(aws ecr describe-repositories | jq -r '.repositories[] | select(.repositoryUri | endswith("'"$1"'")) | .repositoryUri')
+if [ -z "${repo}" ]; then
+    echo 1>&2 "Unable to find repo for $1"
+    exit 1
+fi
+now=$(date +%Y%m%d)
+last=$(aws ecr list-images --repository-name "$1" | jq -Mr '.imageIds[].imageTag' | grep "^$now" | sort -t . -k 2n | tail -n 1)
+if [ -z "$last" ]; then
+  echo "${repo}:${now}.1"
+else
+  echo "${repo}:${now}.$((${last#*.} + 1))"
+fi
