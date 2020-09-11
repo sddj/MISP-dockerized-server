@@ -40,8 +40,8 @@ input (type="imfile" tag="mispzmq.info" file="/var/www/MISP/app/tmp/logs/mispzmq
 input (type="imfile" tag="mispzmq.error" file="/var/www/MISP/app/tmp/logs/mispzmq.error.log")
 
 
-# all info and debug tagged messages to stdout
-*.info;*.debug /dev/stdout
+# all info and debug tagged messages to /dev/null
+*.info;*.debug /dev/null
 
 # all error and emerg tagged messages to stderr
 *.error;*.emerg /dev/stderr

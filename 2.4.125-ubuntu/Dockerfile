@@ -1,5 +1,5 @@
 #FROM debian:stretch-slim
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_PRIORITY critical
 
@@ -49,13 +49,13 @@ RUN sudo apt install -qy \
 # add own mysql config
 #COPY files/etc/mysql/mariadb.conf.d/DCSO.cnf /etc/mysql/mariadb.conf.d/
 
-##### Install PHP 7.2 dependencies
+##### Install PHP 7.4 dependencies
 RUN sudo apt update; \
     sudo apt install -qy \
     libapache2-mod-php \
     php php-cli \
     php-dev \
-    php-json php-xml php-mysql php7.2-opcache php-readline php-mbstring \
+    php-json php-xml php-mysql php7.4-opcache php-readline php-mbstring \
     php-redis php-gnupg \
     php-gd;
 
@@ -128,7 +128,7 @@ RUN set -eu; \
 
 # install lief
 RUN set -eu; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install https://github.com/lief-project/packages/raw/lief-master-latest/pylief-0.9.0.dev.zip
+    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install --index-url  https://lief-project.github.io/packages lief
 
 # install zmq needed by mispzmq
 RUN set -eu; \

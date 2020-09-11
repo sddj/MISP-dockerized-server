@@ -119,7 +119,7 @@ patch_misp() {
 }
 
 init_pgp(){
-    local FOLDER="${MISP_BASE_PATH}/.gnupgp"
+    local FOLDER="${MISP_BASE_PATH}/.gnupg"
     
     if [ ! $PGP_ENABLE == "y" ]; then
         # if pgp should not be activated return
@@ -142,16 +142,16 @@ init_pgp(){
     else
         echo "$STARTMSG ###### PGP Key exists and copy it to MISP webroot #######"
         
-        chown -R www-data:www-data ${FOLDER}
-        chmod 700 ${FOLDER}
-        chmod 400 ${FOLDER}/*
-
         if [ -f ${FOLDER}/private.key ] && [ -n "${MISP_PGP_PVTPASS}" ]; then
             echo "$STARTMSG PGP Adding ${FOLDER}/private.key to the key ring..."
             echo "${MISP_PGP_PVTPASS}" >pass-file.$$
             GNUPGHOME=${FOLDER} gpg --batch --pinentry-mode=loopback --passphrase-file=pass-file.$$ --import ${FOLDER}/private.key
             rm pass-file.$$
         fi
+
+        chown -R www-data:www-data ${FOLDER}
+        chmod 700 ${FOLDER}
+        chmod 400 ${FOLDER}/*
 
         # Copy public key to the right place
         [ -f ${MISP_APP_PATH}/webroot/gpg.asc ] && rm ${MISP_APP_PATH}/webroot/gpg.asc
@@ -231,7 +231,7 @@ init_misp_config(){
         echo "$STARTMSG Configure MISP | Set MISP-Url in config.php"
         sed -i "s_.*baseurl.*=>.*_    'baseurl' => '$MISP_URL',_" $MISP_CONFIG
         #sudo $Q >/dev/null 2>&1 $CAKE baseurl "$MISP_URL"
-        sed -i "s/.*'org'.*=>.*/    'org' => 'PANW','host_org_id' => 1,/" $MISP_CONFIG
+        sed -i "s/.*'org'.*=>.*/    'org' => 'ROOT','host_org_id' => 1,/" $MISP_CONFIG
 
         echo "$STARTMSG Configure MISP | Set Email in config.php"
         sed -i "s/email@address.com/$SENDER_ADDRESS/" $MISP_CONFIG
