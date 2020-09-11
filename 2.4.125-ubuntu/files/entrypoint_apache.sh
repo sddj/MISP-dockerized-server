@@ -141,14 +141,12 @@ init_pgp(){
         exit 1
     else
         echo "$STARTMSG ###### PGP Key exists and copy it to MISP webroot #######"
-        
         if [ -f ${FOLDER}/private.key ] && [ -n "${MISP_PGP_PVTPASS}" ]; then
             echo "$STARTMSG PGP Adding ${FOLDER}/private.key to the key ring..."
             echo "${MISP_PGP_PVTPASS}" >pass-file.$$
             GNUPGHOME=${FOLDER} gpg --batch --pinentry-mode=loopback --passphrase-file=pass-file.$$ --import ${FOLDER}/private.key
             rm pass-file.$$
         fi
-
         chown -R www-data:www-data ${FOLDER}
         chmod 700 ${FOLDER}
         chmod 400 ${FOLDER}/*
@@ -274,7 +272,7 @@ setup_redis_CAKE(){
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting Redis settings via CAKE..."
-        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_host" "$REDIS_FQDN" 
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_host" "$REDIS_FQDN"
         sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_port" "${REDIS_PORT:-6379}"
         sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_database" "${REDIS_DATABASE:-13}"
         sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_password" "${REDIS_PW:-}"
@@ -387,7 +385,6 @@ check_mysql(){
         echo "$STARTMSG MySQL import...finished"
     fi
 
-    
 }
 
 check_redis(){
