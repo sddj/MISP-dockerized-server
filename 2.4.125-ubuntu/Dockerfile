@@ -55,9 +55,9 @@ RUN sudo apt update; \
     libapache2-mod-php \
     php php-cli \
     php-dev \
-    php-json php-xml php-mysql php7.4-opcache php-readline php-mbstring \
+    php-json php-xml php-mysql php-opcache php-readline php-mbstring \
     php-redis php-gnupg \
-    php-gd;
+    php-gd php-zip php-intl
 
 ##### Install MISP Core
 ARG VERSION=""
@@ -141,6 +141,23 @@ RUN set -eu; \
 # install plyara
 RUN set -eu; \
     $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install plyara
+
+# ssdeep
+RUN set -eu; \
+    cd /usr/local/src; \
+    sudo rm -rf ssdeep-*; \
+    sudo wget https://github.com/ssdeep-project/ssdeep/releases/download/release-2.14.1/ssdeep-2.14.1.tar.gz; \
+    sudo tar zxf ssdeep-2.14.1.tar.gz; \
+    cd ssdeep-2.14.1; \
+    sudo ./configure --datadir=/usr --prefix=/usr --localstatedir=/var --sysconfdir=/etc; \
+    sudo make; \
+    sudo make install; \
+    sudo pecl channel-update pecl.php.net; \
+    sudo pecl install ssdeep; \
+    for P in /etc/php/*; do (echo "extension=ssdeep.so" | tee "${P}/mods-available/ssdeep.ini"); done; \
+    phpenmod ssdeep; \
+    cd ..; \
+    rm -rf ssdeep-*
 
 ##### Install CakePHP
 # Once done, install CakeResque along with its dependencies 
