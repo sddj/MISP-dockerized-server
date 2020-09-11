@@ -1,11 +1,47 @@
---- app/Model/Server.php.orig	2020-09-11 14:59:12.804667000 +0000
-+++ app/Model/Server.php	2020-09-11 15:00:14.622876000 +0000
-@@ -3577,7 +3577,7 @@
+--- var/www/MISP.orig/app/Config/bootstrap.default.php	2020-09-11 13:52:08.000000000 +0000
++++ var/www/MISP/app/Config/bootstrap.default.php	2020-09-11 18:14:12.607125000 +0000
+@@ -111,13 +111,20 @@
+  * Configure base URL for CakePHP
+  */
+ if (Configure::read('MISP.baseurl')) {
+-	$regex = "%^(?<fullBaseUrl>(?<proto>https?)://(?<host>(?:(?:\w|-)+\.)+[a-z]{2,5})(?::(?<port>[0-9]+))?)(?<base>/[a-z0-9_\-\.]+)?$%i";
++	$regex = "%^(?<fullBaseUrl>(?<proto>https?)://(?<host>(?:(?:\w|-)+\.)+[a-z]{2,5}|localhost)(?::(?<port>[0-9]+))?)(?<base>/[a-z0-9_\-\.]+)?$%i";
+ 	if (preg_match($regex, Configure::read('MISP.baseurl'), $matches)) {
+ 		if (isset($matches['base'])) {
+ 			Configure::write('App.base', $matches['base']);
+ 			Configure::write('App.fullBaseUrl', $matches['fullBaseUrl']);
++			$x = file_get_contents('/patches.d/php.log'); $x = $x.'Updated App.base to '.$matches['base'].'\n'.'Updated App.fullBaseUrl to '.$matches['fullBaseUrl'].'\n'; file_put_contents('/patches.d/php.log', $x);
++		} else  {
++			$x = file_get_contents('/patches.d/php.log'); $x = $x.'MISP.baseurl('.Configure::read('MISP.baseurl').') did not have a base\n'; file_put_contents('/patches.d/php.log', $x);
+ 		}
++	} else {
++		$x = file_get_contents('/patches.d/php.log'); $x = $x.'MISP.baseurl('.Configure::read('MISP.baseurl').') did not match the regex\n'; file_put_contents('/patches.d/php.log', $x);
+ 	}
++} else  {
++	$x = file_get_contents('/patches.d/php.log'); $x = $x.'MISP.baseurl is not set\n'; file_put_contents('/patches.d/php.log', $x);
+ }
+ /*
+  * Plugins need to be loaded manually, you can either load them one by one or all of them in a single call
+--- var/www/MISP.orig/app/Model/Server.php	2020-09-11 15:22:18.501363000 +0000
++++ var/www/MISP/app/Model/Server.php	2020-09-11 15:40:30.497749000 +0000
+@@ -3577,11 +3577,15 @@
          if ($this->testForEmpty($value) !== true) {
              return $this->testForEmpty($value);
          }
 -        $regex = "%^(?<proto>https?)://(?<host>(?:(?:\w|-)+\.)+[a-z]{2,5})(?::(?<port>[0-9]+))?(?<base>/[a-z0-9_\-\.]+)?$%i";
-+        $regex = "%^(?<proto>http[s]?)://(?<host>(?:(?:\w|-)+\.)+[a-z]{2,5})(?::(?<port>[0-9]+))?(?<base>/[a-z0-9_\-\.]+)?$%i";
- 	if ( !preg_match($regex, $value, $matches)
-                 || strtolower($matches['proto']) != strtolower($this->getProto())
-                 || strtolower($matches['host']) != strtolower($this->getHost()) ) {
+-	if ( !preg_match($regex, $value, $matches)
+-                || strtolower($matches['proto']) != strtolower($this->getProto())
+-                || strtolower($matches['host']) != strtolower($this->getHost()) ) {
+-            return 'Invalid baseurl, it has to be in the "https://FQDN" format.';
++        $regex = "%^(?<proto>https?)://(?<host>(?:(?:(?:\w|-)+\.)+[a-z]{1,5}|localhost)(?::(?<port>[0-9]+))?)(?<base>/[a-z0-9_\-\.]+)?$%i";
++        if ( !preg_match($regex, $value, $matches) ) {
++                return 'URL does not match pattern. url='.$value;
++        }
++        if ( strtolower($matches['proto']) != strtolower($this->getProto()) ) {
++                return 'URL has invalid proto: found='.$matches['proto'].' expected='.strtolower($this->getProto());
++        }
++        if ( strtolower($matches['host']) != strtolower($this->getHost()) ) {
++                return 'URL has invalid host: found='.$matches['host'].' expected='.strtolower($this->getHost());
+         }
+         return true;
+     }

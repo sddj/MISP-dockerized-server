@@ -15,6 +15,12 @@ STARTMSG="${Light_Green}[ENTRYPOINT_RSYSLOG]${NC}"
 
 adduser syslog www-data
 
+chmod a+w /dev/stdout /dev/stderr
+
+sed -i 's/^\(module(load="imklog".*)\)/#\1/;' /etc/rsyslog.conf
+
+touch /var/www/MISP/app/tmp/logs/{error,resque-worker-error,resque-scheduler-error,mispzmq,mispzmq.error}.log
+
 # write supervisord configuration
 cat << EOF > /etc/rsyslog.d/rsyslog_custom.conf
 # https://www.slideshare.net/rainergerhards1/using-wildcards-with-rsyslogs-file-monitor-imfile
@@ -35,19 +41,13 @@ input (type="imfile" tag="mispzmq.error" file="/var/www/MISP/app/tmp/logs/mispzm
 
 
 # all info and debug tagged messages to stdout
-*.info;\
-    *.debug /dev/stdout
+*.info;*.debug /dev/stdout
 
 # all error and emerg tagged messages to stderr
-*.error;\
-    *.emerg /dev/stderr
+*.error;*.emerg /dev/stderr
 
 # discard all other:
 & stop
-
-# all other
-*.* /dev/stdout
-
 EOF
 
 

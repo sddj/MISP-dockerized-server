@@ -82,6 +82,7 @@ PID_CERT_CREATER="/etc/apache2/ssl/SSL_create.pid"
 [ -z "$MISP_SALT" ] && MISP_SALT="$(</dev/urandom tr -dc A-Za-z0-9 | head -c 50)"
 
 [ -z "$CAKE" ] && CAKE="$MISP_APP_PATH/Console/cake"
+Q=""
 [ -z "$MYSQLCMD" ] && MYSQLCMD="mysql -u $MYSQL_USER -p$MYSQL_PASSWORD -P $MYSQL_PORT -h $MYSQL_HOST -r -N  $MYSQL_DATABASE"
 
 [ -z "${PHP_MEMORY_LIMIT}" ] && PHP_MEMORY_LIMIT="1024M"
@@ -98,8 +99,12 @@ patch_misp() {
     if [ -f /patches.d/patched ]; then
         echo "$STARTMSG patching MISP...already patched"
     else
+        echo "$STARTMSG patching MISP..."
         touch /patches.d/patched
-        pushd $MISP_BASE_PATH
+        if [ -f /patches.d/debug ]; then
+            rsync -aS $MISP_BASE_PATH/ $MISP_BASE_PATH.orig
+        fi
+        pushd /
         for patch in $(ls -1 /patches.d/*.sh 2>/dev/null); do
             "${patch}"
         done
@@ -107,6 +112,8 @@ patch_misp() {
             patch -p0 <"${patch}"
         done
         popd
+
+        touch /patches.d/php.log; chmod a+rw /patches.d/php.log
         echo "$STARTMSG patching MISP...finished"
     fi
 }
@@ -223,7 +230,8 @@ init_misp_config(){
 
         echo "$STARTMSG Configure MISP | Set MISP-Url in config.php"
         sed -i "s_.*baseurl.*=>.*_    'baseurl' => '$MISP_URL',_" $MISP_CONFIG
-        #sudo $CAKE baseurl "$MISP_URL"
+        #sudo $Q >/dev/null 2>&1 $CAKE baseurl "$MISP_URL"
+        sed -i "s/.*'org'.*=>.*/    'org' => 'PANW','host_org_id' => 1,/" $MISP_CONFIG
 
         echo "$STARTMSG Configure MISP | Set Email in config.php"
         sed -i "s/email@address.com/$SENDER_ADDRESS/" $MISP_CONFIG
@@ -257,7 +265,7 @@ setup_python_venv_CAKE(){
     else
         echo "$STARTMSG Setting python venv via CAKE..."
         # Set python path
-        sudo $CAKE Admin setSetting "MISP.python_bin" "/var/www/MISP/venv/bin/python"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.python_bin" "/var/www/MISP/venv/bin/python"
     fi
 }
 
@@ -266,11 +274,11 @@ setup_redis_CAKE(){
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting Redis settings via CAKE..."
-        sudo $CAKE Admin setSetting "MISP.redis_host" "$REDIS_FQDN" 
-        sudo $CAKE Admin setSetting "MISP.redis_port" "${REDIS_PORT:-6379}"
-        sudo $CAKE Admin setSetting "MISP.redis_database" "${REDIS_DATABASE:-13}"
-        sudo $CAKE Admin setSetting "MISP.redis_password" "${REDIS_PW:-}"
-        sudo $CAKE Admin setSetting "Plugin.ZeroMQ_redis_host" "$REDIS_FQDN"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_host" "$REDIS_FQDN" 
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_port" "${REDIS_PORT:-6379}"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_database" "${REDIS_DATABASE:-13}"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.redis_password" "${REDIS_PW:-}"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.ZeroMQ_redis_host" "$REDIS_FQDN"
     fi
 }
 
@@ -283,28 +291,28 @@ setup_misp_modules_CAKE(){
     else
         echo "$STARTMSG Setting MISP-Modules settings via CAKE..."
         # Enable Enrichment 
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_url" "${MISP_MODULES_URL}"
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_services_enable" true
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_hover_enable" true
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_timeout" 300
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_hover_timeout" 150
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_cve_advanced_enabled" true
-        sudo $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_services_url" "${MISP_MODULES_URL}"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_services_enable" true
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_hover_enable" true
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_timeout" 300
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_hover_timeout" 150
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_cve_advanced_enabled" true
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_dns_enabled" true
         # Enable Import modules set better timout
-        sudo $CAKE Admin setSetting "Plugin.Import_services_url" "${MISP_MODULES_URL}"
-        sudo $CAKE Admin setSetting "Plugin.Import_services_port" "${MISP_MODULES_PORT}"
-        sudo $CAKE Admin setSetting "Plugin.Import_services_enable" true
-        sudo $CAKE Admin setSetting "Plugin.Import_timeout" 300
-        #sudo $CAKE Admin setSetting "Plugin.Import_ocr_enabled" true
-        #sudo $CAKE Admin setSetting "Plugin.Import_csvimport_enabled" true
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_services_url" "${MISP_MODULES_URL}"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_services_port" "${MISP_MODULES_PORT}"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_services_enable" true
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_timeout" 300
+        #sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_ocr_enabled" true
+        #sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Import_csvimport_enabled" true
         # Enable modules set better timout
-        sudo $CAKE Admin setSetting "Plugin.Export_services_url" "${MISP_MODULES_URL}"
-        sudo $CAKE Admin setSetting "Plugin.Export_services_port" "${MISP_MODULES_PORT}"
-        sudo $CAKE Admin setSetting "Plugin.Export_services_enable" true
-        sudo $CAKE Admin setSetting "Plugin.Export_timeout" 300
-        #sudo $CAKE Admin setSetting "Plugin.Export_pdfexport_enabled" true
-        sudo $CAKE Admin setSetting "Plugin.Cortex_services_enable" false
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_services_url" "${MISP_MODULES_URL}"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_services_port" "${MISP_MODULES_PORT}"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_services_enable" true
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_timeout" 300
+        #sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Export_pdfexport_enabled" true
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Cortex_services_enable" false
     fi
 }
 
@@ -509,19 +517,19 @@ echo "$STARTMSG Deactivate Apache2 Event Worker" && a2dismod mpm_event
 # check volumes and upgrade if it is required
 echo "$STARTMSG Upgrade if it is required..." && upgrade
 
-sudo $CAKE Admin setSetting "MISP.external_baseurl" "$MISP_URL"
-sudo $CAKE Admin setSetting "MISP.language" "${MISP_LANG:-eng}"
-sudo $CAKE Admin setSetting "MISP.default_event_tag_collection" "${MISP_DETC:-}"
-sudo $CAKE Admin setSetting "MISP.proposals_block_attributes" "${MISP_PBA:-true}"
-sudo $CAKE Admin setSetting "GnuPG.email" "$SENDER_ADDRESS"
-sudo $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/.gnupg"
-if [ -n "${MISP_PGP_PVTPASS}" ]; then sudo $CAKE Admin setSetting "GnuPG.password" "${MISP_PGP_PVTPASS}"; fi
-sudo $CAKE Admin updateGalaxies
-sudo $CAKE Admin updateTaxonomies
-sudo $CAKE Admin updateWarningLists
-sudo $CAKE Admin updateNoticeLists
-#sudo $CAKE Admin updateObjectTemplates
-sudo $CAKE Live 1
+sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.external_baseurl" "$MISP_URL"
+sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.language" "${MISP_LANG:-eng}"
+sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.default_event_tag_collection" "${MISP_DETC:-}"
+sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.proposals_block_attributes" "${MISP_PBA:-true}"
+sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.email" "$SENDER_ADDRESS"
+sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/.gnupg"
+if [ -n "${MISP_PGP_PVTPASS}" ]; then sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.password" "${MISP_PGP_PVTPASS}"; fi
+sudo $Q >/dev/null 2>&1 $CAKE Admin updateGalaxies
+sudo $Q >/dev/null 2>&1 $CAKE Admin updateTaxonomies
+sudo $Q >/dev/null 2>&1 $CAKE Admin updateWarningLists
+sudo $Q >/dev/null 2>&1 $CAKE Admin updateNoticeLists
+#sudo $Q >/dev/null 2>&1 $CAKE Admin updateObjectTemplates
+sudo $Q >/dev/null 2>&1 $CAKE Live 1
 
 ##### Check permissions #####
 echo "$STARTMSG Configure MISP | Check if permissions are still ok..."

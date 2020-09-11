@@ -4,7 +4,7 @@ set -e
 STARTMSG="[HEALTHCHECK]"
 
 check_apache(){
-    curl -fk https://localhost/ || (echo "$STARTMSG Error at apache2." && exit 1)
+    curl -fk http://localhost/ || (echo "$STARTMSG Error at apache2." && exit 1)
     echo
 }
 
