@@ -148,8 +148,8 @@ init_pgp(){
             rm pass-file.$$
         fi
         chown -R www-data:www-data ${FOLDER}
-        chmod 700 ${FOLDER}
-        chmod 400 ${FOLDER}/*
+        find ${FOLDER} -type d -exec chmod 700 {} \;
+        find ${FOLDER} \( -type f -o -type s \) -exec chmod 600 {} \;
 
         # Copy public key to the right place
         [ -f ${MISP_APP_PATH}/webroot/gpg.asc ] && rm ${MISP_APP_PATH}/webroot/gpg.asc
