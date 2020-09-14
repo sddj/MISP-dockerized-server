@@ -21,7 +21,7 @@ push: misp-server.push
 %.push:
 	if [ -f $$HOME/r/opt/aws/bin/activate ]; then . $$HOME/r/opt/aws/bin/activate; fi\
 	&& $$(aws ecr get-login --no-include-email)\
-	&& DST_TAGGED_IMAGE=$$(bin/image-repo-tag ${SRC_TAGGED_IMAGE} $*)\
+	&& DST_TAGGED_IMAGE=$$(bin/image-repo-tag $*)\
 	&& docker tag ${SRC_TAGGED_IMAGE} $$DST_TAGGED_IMAGE\
 	&& docker push $$DST_TAGGED_IMAGE\
 	&& echo $$DST_TAGGED_IMAGE
