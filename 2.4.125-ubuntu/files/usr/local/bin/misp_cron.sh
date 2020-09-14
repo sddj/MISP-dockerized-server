@@ -30,7 +30,7 @@ CAKE="/var/www/MISP/app/Console/cake"
 
 [ -z "$MYSQL_DATABASE" ] && export MYSQL_DATABASE=misp
 [ -z "$MYSQL_HOST" ] && export MYSQL_HOST=misp-db
-[ -z "$MYSQL_ROOT_PASSWORD" ] && echo "$STARTMSG No MYSQL_ROOT_PASSWORD is set. Exit now." && exit 1
+#[ -z "$MYSQL_ROOT_PASSWORD" ] && echo "$STARTMSG No MYSQL_ROOT_PASSWORD is set. Exit now." && exit 1
 [ -z "$MYSQL_PORT" ] && export MYSQL_PORT=3306
 [ -z "$MYSQL_USER" ] && export MYSQL_USER=misp
 [ -z "$MYSQLCMD" ] && export MYSQLCMD="mysql -u $MYSQL_USER -p$MYSQL_PASSWORD -P $MYSQL_PORT -h $MYSQL_HOST -r -N  $MYSQL_DATABASE"
