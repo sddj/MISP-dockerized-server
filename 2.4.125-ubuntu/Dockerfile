@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_PRIORITY critical
 
 # Base dependencies
-RUN apt-get update; apt-get install -y \ 
+RUN apt-get update; apt-get install -y \
 locales \
 iputils-ping \
 net-tools \
@@ -39,7 +39,7 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
 ##### Install core dependencies
 RUN sudo apt install -qy \
     curl gcc git gnupg-agent make openssl redis-server neovim unzip zip libyara-dev python3-yara python3-redis python3-zmq sqlite3 \
-    mariadb-client \ 
+    mariadb-client \
     mariadb-server \
     apache2 apache2-doc apache2-utils \
     python3-dev python3-pip python3-venv libpq5 libjpeg-dev libfuzzy-dev ruby asciidoctor \
@@ -70,14 +70,15 @@ ENV SUDO_WWW="sudo -H -u ${WWW_USER}"
 RUN set -eu; \
     git clone https://github.com/MISP/MISP.git ${PATH_TO_MISP}; \
     cd ${PATH_TO_MISP}; \
-    git checkout tags/v${VERSION:-1.2.125}; \
+    git checkout tags/v${VERSION:-2.4.125}; \
     chown -R ${WWW_USER}:${WWW_USER} ${PATH_TO_MISP}; \
-    # Make git ignore filesystem permission differences
-    cd ${PATH_TO_MISP}; $SUDO_WWW git config core.filemode false; \
-    # CakePHP and a lot of other things is included as a submodule of MISP, execute the following commands to let git fetch it:
-    cd ${PATH_TO_MISP}; $SUDO_WWW git submodule update --init --recursive; \
-    # Make git ignore filesystem permission differences for submodules
-    cd ${PATH_TO_MISP}; $SUDO_WWW git submodule foreach --recursive git config core.filemode false
+    cd ${PATH_TO_MISP}; \
+    $SUDO_WWW git config core.filemode false; \
+    $SUDO_WWW git submodule sync; \
+    $SUDO_WWW git submodule update --init --recursive; \
+    $SUDO_WWW git submodule foreach --recursive git config core.filemode false; \
+    cd cti-python-stix2; \
+    pip3 install -I .;
 
 # Create a python3 virtualenv
 RUN $SUDO_WWW python3 -m venv ${PATH_TO_MISP}/venv
@@ -85,7 +86,6 @@ RUN $SUDO_WWW python3 -m venv ${PATH_TO_MISP}/venv
 # Make PIP happy
 RUN sudo mkdir /var/www/.cache/; \
     sudo chown www-data:www-data /var/www/.cache; \
-    # Install wheel
     $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install wheel;
 
 RUN cd ${PATH_TO_MISP}/app/files/scripts; \
@@ -113,7 +113,6 @@ RUN set -eu; \
 
 RUN set -eu; \
     $SUDO_WWW $PATH_TO_MISP/venv/bin/pip install -I antlr4-python3-runtime==4.7.2; \
-    # install STIX2.0 library to support STIX 2.0 export:
     cd ${PATH_TO_MISP}/cti-python-stix2; \
     $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install .
 
@@ -194,7 +193,6 @@ RUN set -eu \
     chown root.root /etc/apache2/ports.conf; \
     chmod 640 /etc/apache2/sites-available/*; \
     chown root.root /etc/apache2/sites-available/*; \
-# Configure Apache
     sudo a2dismod status; \
     sudo a2enmod ssl; \
     sudo a2enmod rewrite; \
@@ -207,13 +205,10 @@ RUN sudo cp /var/www/MISP/INSTALL/misp.logrotate /etc/logrotate.d/misp
 
 ##### Prepare mail encryption
 RUN set -eu; \
-    # for S/MIME
     $SUDO_WWW mkdir /var/www/MISP/.smime; \
     $SUDO_WWW chmod 500 /var/www/MISP/.smime; \
-    # for PGP
     $SUDO_WWW mkdir /var/www/MISP/.gnupg; \
     $SUDO_WWW chmod 700 /var/www/MISP/.gnupg; \
-    # Create empty file for configurat##### Configure Database
     touch "/var/www/MISP/app/Config/NOT_CONFIGURED";
 
 ##### Copy "Mode for Ralf" patch File for MISP Events Page with additional Analyse Column
@@ -282,33 +277,21 @@ CMD_REDIS="--appendonly yes" \
 NAME=${NAME} \
 VERSION=${VERSION} \
 RELEASE_DATE=${RELEASE_DATE} \
-# Environment Variable for Proxy
-http_proxy="" \ 
+http_proxy="" \
 https_proxy="" \
 no_proxy="0.0.0.0" \
-# MYSQL Vars
 MYSQL_HOST="localhost" \
 MYSQL_DATABASE="misp" \
 MYSQL_USER="misp" \
 MYSQL_PASSWORD="ChangeMe123!" \
-# POSTFIX
-# Hostname for the Mailserver
 HOSTNAME=misp \
-# Domain for Outgoing Mail
 DOMAIN=example.com \
-# Sender for local postfix outgoing Mails
 SENDER_ADDRESS=admin@example.com \
-# Relahost to Send Mails
 RELAYHOST=smtp.example.local:587 \
-# RELAY User and Password
 RELAY_USER=misp \
 RELAY_PASSWORD=ChangeMe \
-# Allow only MISP Docker Container Access
 DOCKER_NETWORK=192.168.47.0/28 \
-# You need to get more postfix output for a specified host normally the relayhost or misp-server
 DEBUG_PEER=none \
-# Set locals
-# ENV LC_ALL ${LANG}
 LANGUAGE=en_US:en
 
 
