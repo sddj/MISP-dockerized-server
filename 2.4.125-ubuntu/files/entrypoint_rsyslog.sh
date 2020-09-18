@@ -41,7 +41,7 @@ input (type="imfile" tag="mispzmq.error" file="/var/www/MISP/app/tmp/logs/mispzm
 
 
 # all info and debug tagged messages to /dev/null
-*.info;*.debug /dev/null
+*.info;*.debug /dev/stdout
 
 # all error and emerg tagged messages to stderr
 *.error;*.emerg /dev/stderr

@@ -113,7 +113,6 @@ patch_misp() {
         done
         popd
 
-        touch /patches.d/php.log; chmod a+rw /patches.d/php.log
         echo "$STARTMSG patching MISP...finished"
     fi
 }
@@ -527,6 +526,21 @@ sudo $Q >/dev/null 2>&1 $CAKE Admin updateWarningLists
 sudo $Q >/dev/null 2>&1 $CAKE Admin updateNoticeLists
 #sudo $Q >/dev/null 2>&1 $CAKE Admin updateObjectTemplates
 sudo $Q >/dev/null 2>&1 $CAKE Live 1
+
+if [ "$PHP_DEBUG" == true ]; then
+    pecl install xdebug
+    for FILE in $(ls /etc/php/*/apache2/php.ini); do
+        (
+            echo "[xdebug]"
+            echo "xdebug.remote_enable=1"
+            echo "xdebug.remote_host=host.docker.internal"
+            echo "xdebug.remote_port=9000"
+            echo "zend_extension=/usr/lib/php/20190902/xdebug.so"
+        )>>"$FILE"
+    done
+    (echo '<?php'; echo 'phpinfo();') >app/webroot/info.php
+    chmod +x app/webroot/info.php
+fi
 
 ##### Check permissions #####
 echo "$STARTMSG Configure MISP | Check if permissions are still ok..."
