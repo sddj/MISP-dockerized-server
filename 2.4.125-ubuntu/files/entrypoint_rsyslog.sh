@@ -19,6 +19,7 @@ chmod a+w /dev/stdout /dev/stderr
 
 sed -i 's/^\(module(load="imklog".*)\)/#\1/;' /etc/rsyslog.conf
 
+mkdir -p /var/www/MISP/app/tmp/logs
 touch /var/www/MISP/app/tmp/logs/{error,resque-worker-error,resque-scheduler-error,mispzmq,mispzmq.error}.log
 
 # write supervisord configuration
