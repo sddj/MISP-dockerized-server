@@ -84,26 +84,33 @@ do
 
     # START the SCRIPT
         # Set time and date
-    COUNTER="$(date +%Y-%m-%d_%H:%M)"
+    if [ -n "$AUTH_KEY" ]; then
+        COUNTER="$(date +%Y-%m-%d_%H:%M)"
 
         # Start Message
-    echo "$STARTMSG Start MISP-dockerized Cronjob at $COUNTER... "
+        echo "$STARTMSG Start MISP-dockerized Cronjob at $COUNTER... "
 
-    # Pull: MISP/app/Console/cake Server pull [user_id] [server_id] [full|update]
-    echo "$STARTMSG $CAKE Server pull $USER_ID..." && $CAKE Server pull "$USER_ID"
+        # Pull: MISP/app/Console/cake Server pull [user_id] [server_id] [full|update]
+        for sid in $(echo "SELECT id FROM servers WHERE pull = 1;" | $MYSQLCMD); do
+            echo "$STARTMSG $CAKE Server pull $USER_ID..." && $CAKE Server pull "$USER_ID" "$sid"
+        done
 
-    # Push: MISP/app/Console/cake Server push [user_id] [server_id]
-    echo "$STARTMSG $CAKE Server push $USER_ID..." && $CAKE Server push "$USER_ID"
+        # Push: MISP/app/Console/cake Server push [user_id] [server_id]
+        for sid in $(echo "SELECT id FROM servers WHERE push = 1;" | $MYSQLCMD); do
+            echo "$STARTMSG $CAKE Server push $USER_ID..." && $CAKE Server push "$USER_ID" "$sid"
+        done
 
-    # CacheFeed: MISP/app/Console/cake Server cacheFeed [user_id] [feed_id|all|csv|text|misp]
-    echo "$STARTMSG $CAKE Server cacheFeed $USER_ID all..." && $CAKE Server cacheFeed "$USER_ID" all
+        # CacheFeed: MISP/app/Console/cake Server cacheFeed [user_id] [feed_id|all|csv|text|misp]
+        echo "$STARTMSG $CAKE Server cacheFeed $USER_ID all..." && $CAKE Server cacheFeed "$USER_ID" all
 
-    #FetchFeed: MISP/app/Console/cake Server fetchFeed [user_id] [feed_id|all|csv|text|misp]
-    echo "$STARTMSG $CAKE Server fetchFeed $USER_ID all..." && $CAKE Server fetchFeed "$USER_ID" all
-    
-    # End Message
-    echo "$STARTMSG Finished MISP-dockerized Cronjob at $(date +%Y-%m-%d_%H:%M) and wait $INTERVAL seconds... "
-    
+        #FetchFeed: MISP/app/Console/cake Server fetchFeed [user_id] [feed_id|all|csv|text|misp]
+        echo "$STARTMSG $CAKE Server fetchFeed $USER_ID all..." && $CAKE Server fetchFeed "$USER_ID" all
+        
+        # End Message
+        echo "$STARTMSG Finished MISP-dockerized Cronjob at $(date +%Y-%m-%d_%H:%M) and wait $INTERVAL seconds... "
+    else
+        echo "$STARTMSG No AUTH_KEY found."
+    fi
     # Wait this time
     sleep "$INTERVAL"
 done
