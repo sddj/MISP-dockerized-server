@@ -101,7 +101,7 @@ patch_misp() {
     else
         echo "$STARTMSG patching MISP..."
         touch /patches.d/patched
-        if [ -f /patches.d/debug ]; then
+        if [ "$PHP_DEBUG" == true ]; then
             rsync -aS $MISP_BASE_PATH/ $MISP_BASE_PATH.orig
         fi
         pushd /
@@ -528,18 +528,19 @@ sudo $Q >/dev/null 2>&1 $CAKE Admin updateNoticeLists
 sudo $Q >/dev/null 2>&1 $CAKE Live 1
 
 if [ "$PHP_DEBUG" == true ]; then
-    pecl install xdebug
-    for FILE in $(ls /etc/php/*/apache2/php.ini); do
-        (
-            echo "[xdebug]"
-            echo "xdebug.remote_enable=1"
-            echo "xdebug.remote_host=host.docker.internal"
-            echo "xdebug.remote_port=9000"
-            echo "zend_extension=/usr/lib/php/20190902/xdebug.so"
-        )>>"$FILE"
-    done
-    (echo '<?php'; echo 'phpinfo();') >app/webroot/info.php
-    chmod +x app/webroot/info.php
+    if pecl install xdebug; then
+        for FILE in $(ls /etc/php/*/apache2/php.ini); do
+            (
+                echo "[xdebug]"
+                echo "xdebug.remote_enable=1"
+                echo "xdebug.remote_host=host.docker.internal"
+                echo "xdebug.remote_port=9000"
+                echo "zend_extension=/usr/lib/php/20190902/xdebug.so"
+            )>>"$FILE"
+        done
+        (echo '<?php'; echo 'phpinfo();') >app/webroot/info.php
+        chmod +x app/webroot/info.php
+    fi
 fi
 
 ##### Check permissions #####
