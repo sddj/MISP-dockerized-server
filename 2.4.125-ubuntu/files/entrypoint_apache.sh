@@ -257,17 +257,17 @@ init_misp_config(){
 }
 
 setup_python_venv_CAKE(){
-    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/var/www/MISP/venv/bin/python" /var/www/MISP/app/Config/config.php; then
+    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/usr/bin/python" /var/www/MISP/app/Config/config.php; then
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting python venv via CAKE..."
         # Set python path
-        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.python_bin" "/var/www/MISP/venv/bin/python"
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.python_bin" "/usr/bin/python3"
     fi
 }
 
 setup_redis_CAKE(){
-    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/var/www/MISP/venv/bin/python" /var/www/MISP/app/Config/config.php; then
+    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/usr/bin/python" /var/www/MISP/app/Config/config.php; then
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting Redis settings via CAKE..."
@@ -283,7 +283,7 @@ setup_misp_modules_CAKE(){
     #if [[ ! -e $MISP_APP_CONFIG_PATH/core.php ]]; then
 
     ### We assume that both the python venv and misp modules are unset - if not, the instance was allready configured 
-    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/var/www/MISP/venv/bin/python" /var/www/MISP/app/Config/config.php; then
+    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/usr/bin/python" /var/www/MISP/app/Config/config.php; then
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting MISP-Modules settings via CAKE..."

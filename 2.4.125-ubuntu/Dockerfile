@@ -4,7 +4,8 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_PRIORITY critical
 
 # Base dependencies
-RUN apt-get update; apt-get install -y \
+RUN apt-get update && apt-get install -y \
+build-essential \
 locales \
 iputils-ping \
 net-tools \
@@ -37,27 +38,30 @@ RUN /usr/sbin/update-ca-certificates
 RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
 
 ##### Install core dependencies
-RUN sudo apt install -qy \
-    curl gcc git gnupg-agent make openssl redis-server neovim unzip zip libyara-dev python3-yara python3-redis python3-zmq sqlite3 \
-    mariadb-client \
-    mariadb-server \
+
+RUN apt update && apt install -qy \
+    apt-utils curl gcc git gnupg-agent make openssl redis-server neovim unzip zip libyara-dev sqlite3 \
+    mariadb-client mariadb-server \
     apache2 apache2-doc apache2-utils \
-    python3-dev python3-pip python3-venv libpq5 libjpeg-dev libfuzzy-dev ruby asciidoctor \
-    libxml2-dev libxslt1-dev zlib1g-dev python3-setuptools expect;
+    libpq5 libjpeg-dev libfuzzy-dev ruby asciidoctor \
+    libxml2-dev libxslt1-dev zlib1g-dev expect \
+    python3-dev python3-pip python3 python3-yara python3-redis python3-zmq python3-setuptools && \
+    apt-get clean -y
 
 ##### Configure Database
 # add own mysql config
 #COPY files/etc/mysql/mariadb.conf.d/DCSO.cnf /etc/mysql/mariadb.conf.d/
 
 ##### Install PHP 7.4 dependencies
-RUN sudo apt update; \
-    sudo apt install -qy \
+RUN apt update && \
+    apt install -qy \
     libapache2-mod-php \
     php php-cli \
     php-dev \
     php-json php-xml php-mysql php-opcache php-readline php-mbstring \
     php-redis php-gnupg \
-    php-gd php-zip php-intl
+    php-gd php-zip php-intl && \
+    apt clean -y
 
 ##### Install MISP Core
 ARG VERSION=""
@@ -73,86 +77,30 @@ RUN set -eu; \
     git checkout tags/v${VERSION:-2.4.125}; \
     chown -R ${WWW_USER}:${WWW_USER} ${PATH_TO_MISP}; \
     cd ${PATH_TO_MISP}; \
-    $SUDO_WWW git config core.filemode false; \
-    $SUDO_WWW git submodule sync; \
-    $SUDO_WWW git submodule update --init --recursive; \
-    $SUDO_WWW git submodule foreach --recursive git config core.filemode false; \
+    ${SUDO_WWW} git config core.filemode false; \
+    ${SUDO_WWW} git submodule sync; \
+    ${SUDO_WWW} git submodule update --init --recursive; \
+    ${SUDO_WWW} git submodule foreach --recursive git config core.filemode false; \
+    chown -R ${WWW_USER}:${WWW_USER} ${PATH_TO_MISP}; \
     cd cti-python-stix2; \
     pip3 install -I .;
 
-# Create a python3 virtualenv
-RUN $SUDO_WWW python3 -m venv ${PATH_TO_MISP}/venv
-
-# Make PIP happy
-RUN sudo mkdir /var/www/.cache/; \
-    sudo chown www-data:www-data /var/www/.cache; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install wheel;
-
-RUN cd ${PATH_TO_MISP}/app/files/scripts; \
-    $SUDO_WWW git clone https://github.com/CybOXProject/python-cybox.git; \
-    $SUDO_WWW git clone https://github.com/STIXProject/python-stix.git; \
-    $SUDO_WWW git clone https://github.com/MAECProject/python-maec.git; \
-    $SUDO_WWW git clone https://github.com/CybOXProject/mixbox.git
-
-# install mixbox to accommodate the new STIX dependencies:
-RUN set -eu; \
-    cd ${PATH_TO_MISP}/app/files/scripts/mixbox; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install .
-
-RUN set -eu; \
-    cd ${PATH_TO_MISP}/app/files/scripts/python-cybox; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install .
-
-RUN set -eu; \
-    cd ${PATH_TO_MISP}/app/files/scripts/python-stix; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install .
-
-RUN set -eu; \
-    cd $PATH_TO_MISP/app/files/scripts/python-maec; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install .
-
-RUN set -eu; \
-    $SUDO_WWW $PATH_TO_MISP/venv/bin/pip install -I antlr4-python3-runtime==4.7.2; \
-    cd ${PATH_TO_MISP}/cti-python-stix2; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install .
-
-# install PyMISP
-RUN set -eu; \
-    cd ${PATH_TO_MISP}/PyMISP; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install .
-
-# install pydeep
-RUN set -eu; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install git+https://github.com/kbandla/pydeep.git
-
-# install lief
-RUN set -eu; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install --index-url  https://lief-project.github.io/packages lief
-
-# install zmq needed by mispzmq
-RUN set -eu; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install zmq redis
-
-# install python-magic
-RUN set -eu; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install python-magic
-
-# install plyara
-RUN set -eu; \
-    $SUDO_WWW ${PATH_TO_MISP}/venv/bin/pip install plyara
+RUN pip3 install wheel mixbox cybox stix maec stix2 antlr4-python3-runtime git+https://github.com/kbandla/pydeep.git zmq redis python-magic plyara && \
+    pip3 install --index-url  https://lief-project.github.io/packages lief && \
+    pip3 install git+https://github.com/MISP/PyMISP
 
 # ssdeep
 RUN set -eu; \
     cd /usr/local/src; \
-    sudo rm -rf ssdeep-*; \
-    sudo wget https://github.com/ssdeep-project/ssdeep/releases/download/release-2.14.1/ssdeep-2.14.1.tar.gz; \
-    sudo tar zxf ssdeep-2.14.1.tar.gz; \
+    rm -rf ssdeep-*; \
+    wget https://github.com/ssdeep-project/ssdeep/releases/download/release-2.14.1/ssdeep-2.14.1.tar.gz; \
+    tar zxf ssdeep-2.14.1.tar.gz; \
     cd ssdeep-2.14.1; \
-    sudo ./configure --datadir=/usr --prefix=/usr --localstatedir=/var --sysconfdir=/etc; \
-    sudo make; \
-    sudo make install; \
-    sudo pecl channel-update pecl.php.net; \
-    sudo pecl install ssdeep; \
+    ./configure --datadir=/usr --prefix=/usr --localstatedir=/var --sysconfdir=/etc; \
+    make; \
+    make install; \
+    pecl channel-update pecl.php.net; \
+    pecl install ssdeep; \
     for P in /etc/php/*; do (echo "extension=ssdeep.so" | tee "${P}/mods-available/ssdeep.ini"); done; \
     phpenmod ssdeep; \
     cd ..; \
@@ -163,23 +111,23 @@ RUN set -eu; \
 # if you intend to use the built in background jobs:
 RUN set -eu; \
     cd ${PATH_TO_MISP}/app; \
-    sudo mkdir /var/www/.composer ; \
-    sudo chown $WWW_USER:$WWW_USER /var/www/.composer; \
+    mkdir /var/www/.composer ; \
+    chown $WWW_USER:$WWW_USER /var/www/.composer; \
     $SUDO_WWW php composer.phar install;
 
 # Enable CakeResque with php-redis
-RUN sudo phpenmod redis; \
-    sudo phpenmod gnupg;
+RUN phpenmod redis; \
+    phpenmod gnupg;
 
 # To use the scheduler worker for scheduled tasks, do the following:
 RUN $SUDO_WWW cp -fa ${PATH_TO_MISP}/INSTALL/setup/config.php ${PATH_TO_MISP}/app/Plugin/CakeResque/Config/config.php
 
 ##### Set permissions
-RUN sudo chown -R ${WWW_USER}:${WWW_USER} ${PATH_TO_MISP}; \
-    sudo chmod -R 750 ${PATH_TO_MISP}; \
-    sudo chmod -R g+ws ${PATH_TO_MISP}/app/tmp; \
-    sudo chmod -R g+ws ${PATH_TO_MISP}/app/files; \
-    sudo chmod -R g+ws $PATH_TO_MISP/app/files/scripts/tmp
+RUN chown -R ${WWW_USER}:${WWW_USER} ${PATH_TO_MISP}; \
+    chmod -R 750 ${PATH_TO_MISP}; \
+    chmod -R g+ws ${PATH_TO_MISP}/app/tmp; \
+    chmod -R g+ws ${PATH_TO_MISP}/app/files; \
+    chmod -R g+ws $PATH_TO_MISP/app/files/scripts/tmp
 
 
 ##### Configure Apache
@@ -193,15 +141,15 @@ RUN set -eu \
     chown root.root /etc/apache2/ports.conf; \
     chmod 640 /etc/apache2/sites-available/*; \
     chown root.root /etc/apache2/sites-available/*; \
-    sudo a2dismod status; \
-    sudo a2enmod ssl; \
-    sudo a2enmod rewrite; \
-    sudo a2enmod headers
+    a2dismod status; \
+    a2enmod ssl; \
+    a2enmod rewrite; \
+    a2enmod headers
 
 ##### Enable Log rotation
 # MISP saves the stdout and stderr of its workers in /var/www/MISP/app/tmp/logs
 # To rotate these logs install the supplied logrotate script:
-RUN sudo cp /var/www/MISP/INSTALL/misp.logrotate /etc/logrotate.d/misp
+RUN cp /var/www/MISP/INSTALL/misp.logrotate /etc/logrotate.d/misp
 
 ##### Prepare mail encryption
 RUN set -eu; \
@@ -217,7 +165,7 @@ COPY --chown=www-data:www-data files/var/www/MISP/app/View/Elements/Events/event
 ##### Setting up background workers
 COPY files/etc/rc.local /etc/
 COPY files/etc/systemd/system/misp-workers.service /etc/systemd/system/
-RUN sudo chmod +x $PATH_TO_MISP/app/Console/worker/start.sh; \
+RUN chmod +x $PATH_TO_MISP/app/Console/worker/start.sh; \
     chmod 744 /etc/rc.local
     #sudo systemctl daemon-reload; \
     #sudo systemctl enable --now misp-workers
