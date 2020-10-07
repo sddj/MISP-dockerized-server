@@ -1,0 +1,352 @@
+diff --git a/INSTALL/MYSQL.sql b/INSTALL/MYSQL.sql
+index 7fc310478..3ac9f4076 100644
+--- a/INSTALL/MYSQL.sql
++++ b/INSTALL/MYSQL.sql
+@@ -46,6 +46,16 @@ CREATE TABLE IF NOT EXISTS `attributes` (
+   UNIQUE INDEX `uuid` (`uuid`)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+ 
++
++CREATE TABLE IF NOT EXISTS `attachments` (
++    `id` int(11) PRIMARY KEY AUTO_INCREMENT,
++    `attribute_id` int(11) NOT NULL,
++    `event_id` int(11) NOT NULL,
++    `data` mediumtext,
++    UNIQUE (`attribute_id`, `event_id`)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
++
++
+ -- -------------------------------------------------------
+ 
+ --
+@@ -832,7 +842,9 @@ CREATE TABLE IF NOT EXISTS `servers` (
+   `pull_rules` text COLLATE utf8_bin NOT NULL,
+   `push_rules` text COLLATE utf8_bin NOT NULL,
+   `cert_file` varchar(255) COLLATE utf8_bin DEFAULT NULL,
++  `cert_content` text DEFAULT NULL,
+   `client_cert_file` varchar(255) COLLATE utf8_bin DEFAULT NULL,
++  `client_cert_content` text DEFAULT NULL,
+   `internal` tinyint(1) NOT NULL DEFAULT 0,
+   `skip_proxy` tinyint(1) NOT NULL DEFAULT 0,
+   `caching_enabled` tinyint(1) NOT NULL DEFAULT 0,
+diff --git a/app/Controller/ServersController.php b/app/Controller/ServersController.php
+index cbf71b134..7685d985c 100644
+--- a/app/Controller/ServersController.php
++++ b/app/Controller/ServersController.php
+@@ -841,10 +841,12 @@ class ServersController extends AppController
+         if ($client) {
+             $subm = 'submitted_client_cert';
+             $attr = 'client_cert_file';
++            $contentStore = 'client_cert_content';
+             $ins  = '_client';
+         } else {
+             $subm = 'submitted_cert';
+             $attr = 'cert_file';
++            $contentStore = 'cert_content';
+             $ins  = '';
+         }
+         if (!$delete) {
+@@ -877,15 +879,19 @@ class ServersController extends AppController
+             $pemfile = new File($destpath . $id . $ins . '.' . $ext);
+             $result = $pemfile->write($pemData);
+             $s = $this->Server->read(null, $id);
++            $s['Server'][$contentStore] = $pemData;
+             $s['Server'][$attr] = $s['Server']['id'] . $ins . '.' . $ext;
+             if ($result) {
+                 $this->Server->save($s);
+             }
++
+         } else {
+             $s = $this->Server->read(null, $id);
+             $s['Server'][$attr] = '';
++            $s['Server'][$contentStore] = null;
+             $this->Server->save($s);
+         }
++
+         return true;
+     }
+ 
+diff --git a/app/Lib/Tools/AttachmentTool.php b/app/Lib/Tools/AttachmentTool.php
+index 31c5c8060..ae2d822f2 100644
+--- a/app/Lib/Tools/AttachmentTool.php
++++ b/app/Lib/Tools/AttachmentTool.php
+@@ -1,5 +1,6 @@
+ <?php
+ App::uses('AWSS3Client', 'Tools');
++App::uses('Attachment', 'Models');
+ 
+ class AttachmentTool
+ {
+@@ -8,6 +9,11 @@ class AttachmentTool
+ 
+     /** @var AWSS3Client */
+     private $s3client;
++    private $Attachment;
++
++    public function __construct() {
++        $this->Attachment =  ClassRegistry::init('AttributeAttachment');
++    }
+ 
+     /**
+      * @param int $eventId
+@@ -33,6 +39,20 @@ class AttachmentTool
+         return $this->_exists(true, $eventId, $attributeId, $path_suffix);
+     }
+ 
++    /**
++     * @param $op
++     * @param $eventId
++     * @param $attributeId
++     * @return array|int|null
++     */
++    public function getDatabaseAttachment($op, $eventId, $attributeId) {
++        return $this->Attachment->find($op, array(
++            'conditions' => array(
++                'AttributeAttachment.event_id' => $eventId,
++                'AttributeAttachment.attribute_id' => $attributeId
++            )
++        ));
++    }
+ 
+     /**
+      * @param bool $shadow
+@@ -48,6 +68,8 @@ class AttachmentTool
+             $s3 = $this->loadS3Client();
+             $path = $this->getPath($shadow, $eventId, $attributeId, $path_suffix);
+             return $s3->exist($path);
++        } elseif ($this->attachmentDirIsDb()) {
++            return $this->getDatabaseAttachment('count', $eventId, $attributeId) > 0;
+         } else {
+             try {
+                 $this->_getFile($shadow, $eventId, $attributeId, $path_suffix);
+@@ -97,6 +119,8 @@ class AttachmentTool
+             $s3 = $this->loadS3Client();
+             $path = $this->getPath($shadow, $eventId, $attributeId, $path_suffix);
+             return $s3->download($path);
++        } elseif ($this->attachmentDirIsDb()) {
++            return $this->getDatabaseAttachment('$first', $eventId, $attributeId)['data'];
+         } else {
+             $file = $this->_getFile($shadow, $eventId, $attributeId, $path_suffix);
+             $result = $file->read();
+@@ -148,10 +172,22 @@ class AttachmentTool
+             $content = $s3->download($path);
+ 
+             $file = new File($this->tempFileName());
++            register_shutdown_function(function() use($file) {
++                $file->delete();
++            });
+             if (!$file->write($content)) {
+                 throw new Exception("Could not write temporary file '{$file->path}'.");
+             }
+ 
++        } elseif ($this->attachmentDirIsDb()) {
++            $data = $this->getDatabaseAttachment("first", $eventId, $attributeId)["AttributeAttachment"]["data"];
++            $file = new File($this->tempFileName(), true);
++            register_shutdown_function(function() use($file) {
++                $file->delete();
++            });
++            if (!$data || !$file->write($data)) {
++                throw new Exception("Could not write temporary file '{$file->path}'.");
++            }
+         } else {
+             $filepath = $this->attachmentDir() . DS . $path;
+             $file = new File($filepath);
+@@ -205,7 +241,15 @@ class AttachmentTool
+         if ($this->attachmentDirIsS3()) {
+             $s3 = $this->loadS3Client();
+             $s3->upload($path, $data);
+-
++        } elseif ($this->attachmentDirIsDb()) {
++            $this->Attachment->create();
++            $this->Attachment->save(array(
++                'AttributeAttachment' => array(
++                    'event_id' => $eventId,
++                    'attribute_id' => $attributeId,
++                    'data' => $data
++                )
++            ));
+         } else {
+             $path = $this->attachmentDir() . DS . $path;
+             $file = new File($path, true);
+@@ -255,6 +299,11 @@ class AttachmentTool
+             $s3 = $this->loadS3Client();
+             $path = $this->getPath($shadow, $eventId, $attributeId, $pathSuffix);
+             $s3->delete($path);
++        } elseif ($this->attachmentDirIsDb()) {
++            $this->Attachment->deleteAll(array(
++                'AttributeAttachment.event_id' => $eventId,
++                'AttributeAttachment.attribute_id' => $attributeId
++                ), false);
+         } else {
+             try {
+                 $file = $this->_getFile($shadow, $eventId, $attributeId, $pathSuffix);
+@@ -282,6 +331,12 @@ class AttachmentTool
+         if ($this->attachmentDirIsS3()) {
+             $s3 = $this->loadS3Client();
+             $s3->deleteDirectory($eventId);
++        } elseif ($this->attachmentDirIsDb()) {
++            try {
++                $this->Attachment->deleteAll(array('AttributeAttachment.event_id' => $eventId), false);
++            } catch (Exception $err) {
++                throw $err;
++            }
+         } else {
+             $dirPath = $this->attachmentDir();
+ 
+@@ -480,6 +535,11 @@ class AttachmentTool
+         return substr(Configure::read('MISP.attachments_dir'), 0, 2) === "s3";
+     }
+ 
++    private function attachmentDirIsDb()
++    {
++        return Configure::read('MISP.attachments_dir') === "database";
++    }
++
+     /**
+      * @return AWSS3Client
+      */
+diff --git a/app/Lib/Tools/SyncTool.php b/app/Lib/Tools/SyncTool.php
+index 08cee1b1c..34d31bacd 100644
+--- a/app/Lib/Tools/SyncTool.php
++++ b/app/Lib/Tools/SyncTool.php
+@@ -6,12 +6,19 @@ class SyncTool
+     public function setupHttpSocket($server = null, $timeout = false)
+     {
+         $params = array();
++        $server_cfg = $server['Server'];
+         if (!empty($server)) {
+             if ($server['Server']['cert_file']) {
+                 $params['ssl_cafile'] = APP . "files" . DS . "certs" . DS . $server['Server']['id'] . '.pem';
++                if (!file_exists($params['ssl_cafile'])) {
++                    (new FileAccessTool())->writeToFile($params['ssl_local_cert'], $server_cfg['cert_content']);
++                }
+             }
+             if ($server['Server']['client_cert_file']) {
+                 $params['ssl_local_cert'] = APP . "files" . DS . "certs" . DS . $server['Server']['id'] . '_client.pem';
++                if (!file_exists($params['ssl_local_cert'])) {
++                    (new FileAccessTool())->writeToFile($params['ssl_local_cert'], $server_cfg['client_cert_content']);
++                }
+             }
+             if ($server['Server']['self_signed']) {
+                 $params['ssl_allow_self_signed'] = true;
+diff --git a/app/Model/AttributeAttachment.php b/app/Model/AttributeAttachment.php
+new file mode 100644
+index 000000000..1b352165a
+--- /dev/null
++++ b/app/Model/AttributeAttachment.php
+@@ -0,0 +1,10 @@
++<?php
++
++App::uses('AppModel', 'Model');
++
++
++class AttributeAttachment extends AppModel
++{
++    public $name = 'Attachment';
++    public $useTable = 'attachments';
++}
+\ No newline at end of file
+diff --git a/app/Model/Server.php b/app/Model/Server.php
+index 87f3fa4cd..76f6891c8 100644
+--- a/app/Model/Server.php
++++ b/app/Model/Server.php
+@@ -1,6 +1,8 @@
+ <?php
+ App::uses('AppModel', 'Model');
+ App::uses('GpgTool', 'Tools');
++App::uses('AWSS3Client', 'Tools');
++
+ 
+ class Server extends AppModel
+ {
+@@ -3536,6 +3538,20 @@ class Server extends AppModel
+ 
+     public function testForWritableDir($value)
+     {
++        if ($value === 'database') {
++            try {
++                $this->query("show columns from attachments");
++                return true;
++            } catch (Exception $err) {
++                return "Unable to save to database: " . $err;
++            }
++        }
++        if (substr($value, 0, 5) === "s3://") {
++            $client = new AWSS3Client();
++            $client->initTool();
++            $resp = $client->headBucket(substr($value, 5));
++            return True;
++        }
+         if (substr($value, 0, 7) === "phar://") {
+             return 'Phar protocol not allowed.';
+         }
+diff --git a/app/files/scripts/stix2/stix2misp.py b/app/files/scripts/stix2/stix2misp.py
+index 90c08d989..7ad3d44fc 100644
+--- a/app/files/scripts/stix2/stix2misp.py
++++ b/app/files/scripts/stix2/stix2misp.py
+@@ -15,7 +15,7 @@
+ #
+ #    You should have received a copy of the GNU Affero General Public License
+ #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-
++import re
+ import sys
+ import json
+ import os
+@@ -56,6 +56,7 @@ class StixParser():
+         self.tags = set()
+         self.galaxy = {}
+         self.marking_definition = {}
++        self.report = {}
+ 
+     def handler(self, event, filename, args):
+         self.filename = filename
+@@ -243,11 +244,11 @@ class StixParser():
+                         break
+ 
+     def parse_report(self, event_uuid=None):
+-        event_infos = set()
++        event_info = None
+         self.misp_event.uuid = event_uuid if event_uuid and len(self.report) > 1 else tuple(self.report.keys())[0]
+         for report in self.report.values():
+-            if hasattr(report, 'name') and report.name:
+-                event_infos.add(report.name)
++            if hasattr(report, 'name') and report.name and not event_info:
++                event_info = report.name
+             if hasattr(report, 'labels') and report.labels:
+                 for label in report.labels:
+                     self.tags.add(label)
+@@ -262,10 +263,8 @@ class StixParser():
+             if hasattr(report, 'external_references'):
+                 for reference in report.external_references:
+                     self.misp_event.add_attribute(**{'type': 'link', 'value': reference['url']})
+-        if len(event_infos) == 1:
+-            self.misp_event.info = event_infos.pop()
+-        else:
+-            self.misp_event.info = f'Imported with MISP import script for {self.stix_version}'
++        self.misp_event.info = event_info or \
++                               f'Imported with MISP import script for {self.stix_version} from {os.path.basename(self.filename)}'
+ 
+     @staticmethod
+     def _parse_user_account_groups(groups):
+@@ -1976,9 +1975,9 @@ class ExternalStixParser(StixParser):
+     def get_type_and_value_from_pattern(pattern):
+         pattern = pattern.strip('[]')
+         try:
+-            pattern_type, pattern_value = pattern.split(' = \'')
++            pattern_type, pattern_value = re.split(r" (?:=|LIKE) '", pattern)
+         except ValueError:
+-            pattern_type, pattern_value = pattern.split('=')
++            pattern_type, pattern_value = re.split(r"(?:=|LIKE)", pattern)
+         return pattern_type.strip(), pattern_value.strip("'")
+ 
+     def handle_import_case(self, stix_object, attributes, name, _force_object=False):
+@@ -2035,7 +2034,7 @@ def from_misp(stix_objects):
+ def main(args):
+     filename = Path(os.path.dirname(args[0]), args[1])
+     with open(filename, 'rt', encoding='utf-8') as f:
+-        event = stix2.parse(f.read(), allow_custom=True, interoperability=True)
++        event = stix2.parse(f.read(), allow_custom=True)
+     stix_parser = StixFromMISPParser() if from_misp(event.objects) else ExternalStixParser()
+     stix_parser.handler(event, filename, args[2:])
+     stix_parser.save_file()
