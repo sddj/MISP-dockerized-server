@@ -313,6 +313,10 @@ setup_misp_modules_CAKE(){
     fi
 }
 
+setup_misp_attachments_CAKE(){
+	sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting 'MISP.attachments_dir' "${MISP_ATTACHMENTS}"
+}
+
 create_ssl_cert(){
     # If a valid SSL certificate is not already created for the server, create a self-signed certificate:
     while [ -f $PID_CERT_CREATER.proxy ]
@@ -503,8 +507,11 @@ echo "$STARTMSG Setup redis in MISP" && setup_redis_CAKE
 ##### Set MISP-Modules settings
 echo "$STARTMSG Setup MISP-Modules in MISP" && setup_misp_modules_CAKE
 
+##### Set MISP atatchment storage
+echo "$STARTMSG Set MISP attachment storage" && setup_misp_attachments_CAKE
+
 ##### Set Python Venv
-echo "$STARTMSG Setup Python venv in MISP" && setup_python_venv_CAKE
+echo "$STARTMSG Setup Python in MISP" && setup_python_venv_CAKE
 
 # Disable MPM_EVENT Worker
 echo "$STARTMSG Deactivate Apache2 Event Worker" && a2dismod mpm_event
