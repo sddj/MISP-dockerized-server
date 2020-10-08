@@ -67,7 +67,7 @@ index cbf71b134..7685d985c 100644
      }
  
 diff --git a/app/Lib/Tools/AttachmentTool.php b/app/Lib/Tools/AttachmentTool.php
-index 31c5c8060..ae2d822f2 100644
+index 31c5c8060..4099c8835 100644
 --- a/app/Lib/Tools/AttachmentTool.php
 +++ b/app/Lib/Tools/AttachmentTool.php
 @@ -1,5 +1,6 @@
@@ -124,7 +124,7 @@ index 31c5c8060..ae2d822f2 100644
              $path = $this->getPath($shadow, $eventId, $attributeId, $path_suffix);
              return $s3->download($path);
 +        } elseif ($this->attachmentDirIsDb()) {
-+            return $this->getDatabaseAttachment('$first', $eventId, $attributeId)['data'];
++            return $this->getDatabaseAttachment('first', $eventId, $attributeId)['data'];
          } else {
              $file = $this->_getFile($shadow, $eventId, $attributeId, $path_suffix);
              $result = $file->read();
