@@ -244,7 +244,17 @@ init_misp_config(){
         
         #### CAKE ####
         echo "$STARTMSG Configure Cake | Change Redis host to $REDIS_FQDN"
-        sed -i "s/'host' => 'localhost'.*/'host' => '$REDIS_FQDN',          \/\/ Redis server hostname/" $CAKE_CONFIG
+        if [ -z "${REDIS_PW}" ]; then
+            xREDIS_PW=null
+        else
+            xREDIS_PW="'${REDIS_PW}'"
+        fi
+        sed -E -i\
+            -e "s/('host'\s*=>\s*').*(',.*Redis.*)/\1${REDIS_FQDN}\2/"\
+            -e "s/('port'\s*=>\s*)[0-9]+(,.*Redis.*)/\1${REDIS_PORT:-6379}\2/"\
+            -e "s/('database'\s*=>\s*)[0-9]+(,.*Redis.*)/\1${REDIS_DATABASE:-0}\2/"\
+            -e "s/('password'\s*=>\s*)null(,.*Redis.*)/\1${xREDIS_PW}\2/"\
+        $CAKE_CONFIG
 
         ##############
         echo # add an echo command because if no command is done busybox (alpine sh) won't continue the script
@@ -383,11 +393,19 @@ check_mysql(){
 
 }
 
+redis_ping() {
+    if [ -z "${REDIS_PW}" ]; then
+        redis-cli -h "${REDIS_FQDN}" -p "${REDIS_PORT:-6379}" ping
+    else
+        redis-cli -h "${REDIS_FQDN}" -p "${REDIS_PORT:-6379}" -a "${REDIS_PW}" ping
+    fi
+}
+
 check_redis(){
     # Test when Redis is ready
     while (true)
     do
-        [ "$(redis-cli -h "$REDIS_FQDN" ping)" == "PONG" ] && break;
+        [ "$(redis_ping)" == "PONG" ] && break;
         echo "$STARTMSG Wait for Redis..."
         sleep 2
     done
