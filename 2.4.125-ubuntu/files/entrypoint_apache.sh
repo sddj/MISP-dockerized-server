@@ -214,10 +214,13 @@ init_misp_config(){
         [ -f $MISP_CONFIG ] || cp $MISP_APP_CONFIG_PATH/config.default.php $MISP_CONFIG
 
         echo "$STARTMSG Configure MISP | Set DB User, Password and Host in database.php"
-        sed -i "s/localhost/$MYSQL_HOST/" $DATABASE_CONFIG
-        sed -i "s/db\s*login/$MYSQL_USER/" $DATABASE_CONFIG
-        sed -i "s/8889/3306/" $DATABASE_CONFIG
-        sed -i "s/db\s*password/$MYSQL_PASSWORD/" $DATABASE_CONFIG
+        sed -E -i\
+            -e s"/('host'\s*=>\s*').*(')/\1${MYSQL_HOST}\2/"\
+            -e s"/('port'\s*=>\s*)[0-9]+/\1${MYSQL_PORT}/"\
+            -e s"/('database'\s*=>\s*').*(')/\1${MYSQL_DATABASE}\2/"\
+            -e s"/('login'\s*=>\s*').*(')/\1${MYSQL_USER}\2/"\
+            -e s"/('password'\s*=>\s*').*(')/\1${MYSQL_PASSWORD}\2/"\
+        $DATABASE_CONFIG
 
         echo "$STARTMSG Configure MISP | Set MISP-Url in config.php"
         sed -i "s_.*baseurl.*=>.*_    'baseurl' => '$MISP_URL',_" $MISP_CONFIG
