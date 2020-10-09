@@ -347,23 +347,75 @@ check_misp_modules(){
     done
 }
 
+
+check_db_upgrades() {
+    server_cols() {
+        echo "SELECT COLUMN_NAME FROM information_schema.columns WHERE TABLE_SCHEMA = 'misp' AND TABLE_NAME = 'servers' AND COLUMN_NAME = '$1'"
+    }
+
+    attachments_table() {
+        echo "SELECT COLUMN_NAME FROM information_schema.columns WHERE TABLE_SCHEMA = 'misp' AND TABLE_NAME = 'attachments'"
+    }
+
+    server_cols cert_content | $MYSQLCMD
+    server_cols client_cert_content | $MYSQLCMD
+    attachments_table | $MYSQLMCD
+}
+
+
+local_files_to_db() {
+    FILES="$MISP_APP_PATH/files"
+
+    update_certs() {
+        P=$1
+        CERTS="$FILES/certs"
+        echo "SELECT ${P}_file FROM servers WHERE ${P}_file IS NOT NULL" | $MYSQLCMD | while read CF; do
+            CPATH="${CERTS}/${CF}"
+            if [ -f "${CPATH}" ]; then
+                echo "Attempting to migrate ${CF} to database."
+                echo "UPDATE servers SET ${P}_content = '$(cat ${CPATH})' WHERE ${P}_file = '${CF}'" | $MYSQLCMD
+                echo "Successfully migrated ${CF} to database record."
+            else
+                echo "ERROR: found ${CF} in database but file ${CPATH} not found!"
+            fi
+        done
+    }
+
+    update_certs cert
+    update_certs client_cert
+
+    if [ "${MISP_ATTACHMENTS}" = "database" ]; then
+        echo "Initiating attachment database migration..."
+        find $FILES -type f | grep -e '\/[0-9]\+\/[0-9]\+$' | while read F; do
+            AID="$(basename $F)"
+            EID="$(dirname $F | xargs basename)"
+            DATA="$(base64 $F)"
+            echo "Migration found legacy attachment ${F}.  Migrating file to database."
+            echo "INSERT INTO attachments(attribute_id, event_id, data) VALUES (${AID}, ${EID}, FROM_BASE64('${DATA}'))" | $MYSQLCMD
+        done
+    else
+        echo "Skipping attachment migration, config: ${MISP_ATTACHMENTS}"
+    fi
+}
+
+
 check_mysql(){
-    # Test when MySQL is ready    
+    # Test when MySQL is ready
 
     # Test if entrypoint_local_mariadb.sh is ready
     if [ "${MYSQL_HOST}" == localhost ]; then
-    sleep 5
-    while (true)
-    do
-        #[ ! -f /var/lib/mysql/entrypoint_local_mariadb.sh.pid ] && break
-        #sleep 5
-        if [[ ! -e /var/lib/mysql/misp/users.ibd ]]; then
-            echo "$STARTMSG ... wait until mariadb entrypoint has completly created the database"
-        else            
-            echo "$STARTMSG misp database created or allready exist" && break
-        fi
         sleep 5
-    done
+        while (true)
+        do
+            #[ ! -f /var/lib/mysql/entrypoint_local_mariadb.sh.pid ] && break
+            #sleep 5
+            if [[ ! -e /var/lib/mysql/misp/users.ibd ]]; then
+                echo "$STARTMSG ... wait until mariadb entrypoint has completly created the database"
+            else            
+                echo "$STARTMSG misp database created or allready exist" && break
+            fi
+            sleep 5
+        done
     fi
 
     # wait for Database come ready
@@ -389,8 +441,14 @@ check_mysql(){
         echo "$STARTMSG ... importing MySQL scheme..."
         $MYSQLCMD < /var/www/MISP/INSTALL/MYSQL.sql
         echo "$STARTMSG MySQL import...finished"
+    elif [ -z "$(check_db_upgrades)" ]; then
+        echo "$STARTMSG ... upgrading MySQL scheme..."
+        $MYSQLCMD < /var/www/MISP/INSTALL/MYSQL.upgrade.sql
+        echo "$STARTMSG MySQL upgrade finished"
+        echo "$STARTMSG Importing existing files to MYSQL..."
+        local_files_to_db
+        echo "$STARTMSG Import finished"
     fi
-
 }
 
 redis_ping() {
@@ -511,6 +569,9 @@ echo "$STARTMSG Initialize misp base config..." && init_misp_config
 
 ##### check if setup is new: - in the dockerfile i create on this path a empty file to decide is the configuration completely new or not
 #echo "$STARTMSG Check if cake setup should be initialized..." && setup_via_cake_cli
+
+##### MISP attachments config
+echo "$STARTMSG Configuring attachments..." && setup_misp_attachments_CAKE
 
 ##### Set Redis settings
 echo "$STARTMSG Setup redis in MISP" && setup_redis_CAKE
