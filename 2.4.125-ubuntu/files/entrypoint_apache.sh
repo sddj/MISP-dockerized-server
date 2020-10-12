@@ -357,8 +357,11 @@ check_db_upgrades() {
         echo "SELECT COLUMN_NAME FROM information_schema.columns WHERE TABLE_SCHEMA = 'misp' AND TABLE_NAME = 'attachments'"
     }
 
+    echo 1>&2 "$STARTMSG Check for cert_content column..."
     server_cols cert_content | $MYSQLCMD
+    echo 1>&2 "$STARTMSG Check for client_cert_content column..."
     server_cols client_cert_content | $MYSQLCMD
+    echo 1>&2 "$STARTMSG Check for attachments table..."
     attachments_table | $MYSQLMCD
 }
 
@@ -369,14 +372,15 @@ local_files_to_db() {
     update_certs() {
         P=$1
         CERTS="$FILES/certs"
+        echo "$STARTMSG Migrate ${P} files to the database..."
         echo "SELECT ${P}_file FROM servers WHERE ${P}_file IS NOT NULL" | $MYSQLCMD | while read CF; do
             CPATH="${CERTS}/${CF}"
             if [ -f "${CPATH}" ]; then
-                echo "Attempting to migrate ${CF} to database."
+                echo "$STARTMSG Attempting to migrate ${CF} to database."
                 echo "UPDATE servers SET ${P}_content = '$(cat ${CPATH})' WHERE ${P}_file = '${CF}'" | $MYSQLCMD
-                echo "Successfully migrated ${CF} to database record."
+                echo "$STARTMSG Successfully migrated ${CF} to database record."
             else
-                echo "ERROR: found ${CF} in database but file ${CPATH} not found!"
+                echo "$STARTMSG WARNING: found ${CF} in database but file ${CPATH} not found!"
             fi
         done
     }
@@ -385,16 +389,16 @@ local_files_to_db() {
     update_certs client_cert
 
     if [ "${MISP_ATTACHMENTS}" = "database" ]; then
-        echo "Initiating attachment database migration..."
+        echo "$STARTMSG Initiating attachment database migration..."
         find $FILES -type f | grep -e '\/[0-9]\+\/[0-9]\+$' | while read F; do
             AID="$(basename $F)"
             EID="$(dirname $F | xargs basename)"
             DATA="$(base64 $F)"
-            echo "Migration found legacy attachment ${F}.  Migrating file to database."
+            echo "$STARTMSG Migration found legacy attachment ${F}.  Migrating file to database."
             echo "INSERT INTO attachments(attribute_id, event_id, data) VALUES (${AID}, ${EID}, FROM_BASE64('${DATA}'))" | $MYSQLCMD
         done
     else
-        echo "Skipping attachment migration, config: ${MISP_ATTACHMENTS}"
+        echo "$STARTMSG Skipping attachment migration, config: ${MISP_ATTACHMENTS}"
     fi
 }
 
@@ -425,17 +429,18 @@ check_mysql(){
     }
 
     doesDBexist () {
+        echo 1>&2 "$STARTMSG Check if database exists..."
         echo "SELECT * FROM information_schema.tables WHERE table_schema = 'misp' AND table_name = 'logs' LIMIT 1;" | $MYSQLCMD
     }
 
     RETRY=100
     until [ $(isDBup) -eq 0 ] || [ $RETRY -le 0 ] ; do
-        echo "Waiting for database to come up"
+        echo "$STARTMSG Waiting for database to come up"
         sleep 5
         RETRY=$(( $RETRY - 1))
     done
     if [ $RETRY -le 0 ]; then
-        >&2 echo "Error: Could not connect to Database on $MYSQL_HOST:$MYSQL_PORT"
+        >&2 echo "$STARTMSG Error: Could not connect to Database on $MYSQL_HOST:$MYSQL_PORT"
         exit 1
     elif [ -z "$(doesDBexist)" ]; then
         echo "$STARTMSG ... importing MySQL scheme..."
