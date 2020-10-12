@@ -570,9 +570,6 @@ echo "$STARTMSG Initialize misp base config..." && init_misp_config
 ##### check if setup is new: - in the dockerfile i create on this path a empty file to decide is the configuration completely new or not
 #echo "$STARTMSG Check if cake setup should be initialized..." && setup_via_cake_cli
 
-##### MISP attachments config
-echo "$STARTMSG Configuring attachments..." && setup_misp_attachments_CAKE
-
 ##### Set Redis settings
 echo "$STARTMSG Setup redis in MISP" && setup_redis_CAKE
 
