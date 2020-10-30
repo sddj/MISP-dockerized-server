@@ -5,7 +5,7 @@ set -e
 NC='\033[0m' # No Color
 Light_Green='\033[1;32m'  
 echo (){
-    command echo -e $1
+    command echo -e "$@"
 }
 
 STARTMSG="${Light_Green}[ENTRYPOINT_POSTFIX]${NC}"
@@ -36,7 +36,7 @@ echo "@$DOMAIN $SENDER_ADDRESS" >> $GENERIC
 
 
 # RELAY User and Password
-echo -e "$RELAYHOST $RELAY_USER:$RELAY_PASSWORD" > $SMTP_AUTH
+echo "$RELAYHOST $RELAY_USER:$RELAY_PASSWORD" > $SMTP_AUTH
 
 # Make sure permissions are ok
 chown -R root:root /etc/postfix/*
