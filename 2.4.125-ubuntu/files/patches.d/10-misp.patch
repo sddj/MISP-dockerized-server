@@ -1,5 +1,5 @@
 diff --git a/INSTALL/MYSQL.sql b/INSTALL/MYSQL.sql
-index 4c0dee91e..cccf44d9b 100644
+index 4c0dee91e..0e3e6f800 100644
 --- a/INSTALL/MYSQL.sql
 +++ b/INSTALL/MYSQL.sql
 @@ -68,6 +68,16 @@ CREATE TABLE IF NOT EXISTS `attributes` (
@@ -32,7 +32,7 @@ index 4c0dee91e..cccf44d9b 100644
 +  `extends_uuid` varchar(40) COLLATE utf8_bin DEFAULT '',
 +  `extends_version` int(11) DEFAULT 0,
 +  `published` tinyint(1) NOT NULL DEFAULT 0,
-+  `deleted` TINYINT(1) NOT NULL DEFAULT ,
++  `deleted` TINYINT(1) NOT NULL DEFAULT 0,
    PRIMARY KEY (id),
    INDEX `value` (`value`(255)),
    INDEX `uuid` (`uuid`),
@@ -520,6 +520,19 @@ index 94d8d308e..90a5b6423 100644
              }
              if (!empty($server[$model]['self_signed'])) {
                  $params['ssl_allow_self_signed'] = true;
+diff --git a/app/Model/AppModel.php b/app/Model/AppModel.php
+index 509cceead..6db444e68 100644
+--- a/app/Model/AppModel.php
++++ b/app/Model/AppModel.php
+@@ -1485,7 +1485,7 @@ class AppModel extends Model
+                 $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `extends_uuid` varchar(40) COLLATE utf8_bin DEFAULT '';";
+                 $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `extends_version` int(11) DEFAULT 0;";
+                 $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `published` tinyint(1) NOT NULL DEFAULT 0;";
+-                $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `deleted` TINYINT(1) NOT NULL DEFAULT 0";
++                $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `deleted` TINYINT(1) NOT NULL DEFAULT 0;";
+                 $sqlArray[] = "ALTER TABLE `roles` ADD `perm_galaxy_editor` tinyint(1) NOT NULL DEFAULT 0;";
+ 
+                 $sqlArray[] = "UPDATE `roles` SET `perm_galaxy_editor`=1 WHERE `perm_tag_editor`=1;";
 diff --git a/app/Model/AttributeAttachment.php b/app/Model/AttributeAttachment.php
 new file mode 100644
 index 000000000..1b352165a
