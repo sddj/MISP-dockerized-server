@@ -1,5 +1,5 @@
 diff --git a/INSTALL/MYSQL.sql b/INSTALL/MYSQL.sql
-index 4c0dee91e..0e8f54cd5 100644
+index 4c0dee91e..cccf44d9b 100644
 --- a/INSTALL/MYSQL.sql
 +++ b/INSTALL/MYSQL.sql
 @@ -68,6 +68,16 @@ CREATE TABLE IF NOT EXISTS `attributes` (
@@ -19,7 +19,88 @@ index 4c0dee91e..0e8f54cd5 100644
  -- -------------------------------------------------------
  
  --
-@@ -933,7 +943,9 @@ CREATE TABLE IF NOT EXISTS `servers` (
+@@ -461,6 +471,16 @@ CREATE TABLE IF NOT EXISTS `galaxy_clusters` (
+   `source` varchar(255) COLLATE utf8_bin NOT NULL DEFAULT '',
+   `authors` text COLLATE utf8_bin NOT NULL,
+   `version` int(11) DEFAULT 0,
++  `distribution` tinyint(4) NOT NULL DEFAULT 0,
++  `sharing_group_id` int(11),
++  `org_id` int(11) NOT NULL,
++  `orgc_id` int(11) NOT NULL,
++  `default` tinyint(1) NOT NULL DEFAULT 0,
++  `locked` tinyint(1) NOT NULL DEFAULT 0,
++  `extends_uuid` varchar(40) COLLATE utf8_bin DEFAULT '',
++  `extends_version` int(11) DEFAULT 0,
++  `published` tinyint(1) NOT NULL DEFAULT 0,
++  `deleted` TINYINT(1) NOT NULL DEFAULT ,
+   PRIMARY KEY (id),
+   INDEX `value` (`value`(255)),
+   INDEX `uuid` (`uuid`),
+@@ -491,16 +511,19 @@ CREATE TABLE IF NOT EXISTS `galaxy_elements` (
+ -- -------------------------------------------------------
+ 
+ --
+--- Table structure for `galaxy_reference`
++-- Table structure for `galaxy_cluster_relations`
+ --
+ 
+-CREATE TABLE IF NOT EXISTS `galaxy_reference` (
++CREATE TABLE IF NOT EXISTS `galaxy_cluster_relations` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   `galaxy_cluster_id` int(11) NOT NULL,
+   `referenced_galaxy_cluster_id` int(11) NOT NULL,
+   `referenced_galaxy_cluster_uuid` varchar(255) COLLATE utf8_bin NOT NULL,
+   `referenced_galaxy_cluster_type` text COLLATE utf8_bin NOT NULL,
+-  `referenced_galaxy_cluster_value` text COLLATE utf8_bin NOT NULL,
++  `galaxy_cluster_uuid` varchar(40) COLLATE utf8_bin NOT NULL,
++  `distribution` tinyint(4) NOT NULL DEFAULT 0,
++  `sharing_group_id` int(11),
++  `default` tinyint(1) NOT NULL DEFAULT 0,
+   PRIMARY KEY (id),
+   INDEX `galaxy_cluster_id` (`galaxy_cluster_id`),
+   INDEX `referenced_galaxy_cluster_id` (`referenced_galaxy_cluster_id`),
+@@ -509,6 +532,23 @@ CREATE TABLE IF NOT EXISTS `galaxy_reference` (
+ 
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+ 
++CREATE TABLE IF NOT EXISTS `galaxy_cluster_relation_tags` (
++  `id` int(11) NOT NULL AUTO_INCREMENT,
++  `galaxy_cluster_relation_id` int(11) NOT NULL,
++  `tag_id` int(11) NOT NULL,
++  PRIMARY KEY (`id`)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8;
++
++CREATE TABLE IF NOT EXISTS `galaxy_cluster_blocklists` (
++  `id` int(11) NOT NULL AUTO_INCREMENT,
++  `cluster_uuid` varchar(40) COLLATE utf8_bin NOT NULL,
++  `created` datetime NOT NULL,
++  `cluster_info` TEXT CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,
++  `comment` TEXT CHARACTER SET utf8 COLLATE utf8_unicode_ci,
++  `cluster_orgc` VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
++  PRIMARY KEY (`id`)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
++
+ CREATE TABLE IF NOT EXISTS inbox (
+     `id` int(11) NOT NULL AUTO_INCREMENT,
+     `uuid` varchar(40) COLLATE utf8_bin NOT NULL,
+@@ -905,6 +945,7 @@ CREATE TABLE IF NOT EXISTS `roles` (
+   `perm_decaying` tinyint(1) NOT NULL DEFAULT 0,
+   `enforce_rate_limit` tinyint(1) NOT NULL DEFAULT 0,
+   `rate_limit_count` int(11) NOT NULL DEFAULT 0,
++  `perm_galaxy_editor` tinyint(1) NOT NULL DEFAULT 0,
+   PRIMARY KEY (`id`)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+ 
+@@ -923,6 +964,8 @@ CREATE TABLE IF NOT EXISTS `servers` (
+   `push` tinyint(1) NOT NULL,
+   `pull` tinyint(1) NOT NULL,
+   `push_sightings` tinyint(1) NOT NULL DEFAULT 0,
++  `push_galaxy_clusters` tinyint(1) NOT NULL DEFAULT 0,
++  `pull_galaxy_clusters` tinyint(1) NOT NULL DEFAULT 0,
+   `lastpulledid` int(11) DEFAULT NULL,
+   `lastpushedid` int(11) DEFAULT NULL,
+   `organization` varchar(10) COLLATE utf8_bin DEFAULT NULL,
+@@ -933,7 +976,9 @@ CREATE TABLE IF NOT EXISTS `servers` (
    `pull_rules` text COLLATE utf8_bin NOT NULL,
    `push_rules` text COLLATE utf8_bin NOT NULL,
    `cert_file` varchar(255) COLLATE utf8_bin DEFAULT NULL,
@@ -29,7 +110,7 @@ index 4c0dee91e..0e8f54cd5 100644
    `internal` tinyint(1) NOT NULL DEFAULT 0,
    `skip_proxy` tinyint(1) NOT NULL DEFAULT 0,
    `caching_enabled` tinyint(1) NOT NULL DEFAULT 0,
-@@ -947,7 +959,7 @@ CREATE TABLE IF NOT EXISTS `servers` (
+@@ -947,7 +992,7 @@ CREATE TABLE IF NOT EXISTS `servers` (
  -- --------------------------------------------------------
  
  --
@@ -38,6 +119,15 @@ index 4c0dee91e..0e8f54cd5 100644
  --
  
  CREATE TABLE IF NOT EXISTS `shadow_attributes` (
+@@ -1164,6 +1209,8 @@ CREATE TABLE IF NOT EXISTS `tags` (
+   `user_id` int(11) NOT NULL DEFAULT 0,
+   `hide_tag` tinyint(1) NOT NULL DEFAULT 0,
+   `numerical_value` int(11) NULL,
++  `is_galaxy` tinyint(1) NOT NULL DEFAULT 0,
++  `is_custom_galaxy` tinyint(1) NOT NULL DEFAULT 0,
+   PRIMARY KEY (`id`),
+   INDEX `name` (`name`(255)),
+   INDEX `org_id` (`org_id`),
 diff --git a/INSTALL/MYSQL.upgrade.sql b/INSTALL/MYSQL.upgrade.sql
 new file mode 100644
 index 000000000..65d3e4314
