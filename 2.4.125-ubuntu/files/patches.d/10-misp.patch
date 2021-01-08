@@ -1,5 +1,5 @@
 diff --git a/INSTALL/MYSQL.sql b/INSTALL/MYSQL.sql
-index 4c0dee91e..0e3e6f800 100644
+index 4c0dee91e..e61abd68b 100644
 --- a/INSTALL/MYSQL.sql
 +++ b/INSTALL/MYSQL.sql
 @@ -68,6 +68,16 @@ CREATE TABLE IF NOT EXISTS `attributes` (
@@ -36,7 +36,7 @@ index 4c0dee91e..0e3e6f800 100644
    PRIMARY KEY (id),
    INDEX `value` (`value`(255)),
    INDEX `uuid` (`uuid`),
-@@ -491,16 +511,19 @@ CREATE TABLE IF NOT EXISTS `galaxy_elements` (
+@@ -491,22 +511,40 @@ CREATE TABLE IF NOT EXISTS `galaxy_elements` (
  -- -------------------------------------------------------
  
  --
@@ -59,9 +59,9 @@ index 4c0dee91e..0e3e6f800 100644
    PRIMARY KEY (id),
    INDEX `galaxy_cluster_id` (`galaxy_cluster_id`),
    INDEX `referenced_galaxy_cluster_id` (`referenced_galaxy_cluster_id`),
-@@ -509,6 +532,23 @@ CREATE TABLE IF NOT EXISTS `galaxy_reference` (
- 
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+-  INDEX `referenced_galaxy_cluster_value` (`referenced_galaxy_cluster_value`(255)),
+   INDEX `referenced_galaxy_cluster_type` (`referenced_galaxy_cluster_type`(255))
++) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
  
 +CREATE TABLE IF NOT EXISTS `galaxy_cluster_relation_tags` (
 +  `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -78,12 +78,10 @@ index 4c0dee91e..0e3e6f800 100644
 +  `comment` TEXT CHARACTER SET utf8 COLLATE utf8_unicode_ci,
 +  `cluster_orgc` VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
 +  PRIMARY KEY (`id`)
-+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-+
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+ 
  CREATE TABLE IF NOT EXISTS inbox (
-     `id` int(11) NOT NULL AUTO_INCREMENT,
-     `uuid` varchar(40) COLLATE utf8_bin NOT NULL,
-@@ -905,6 +945,7 @@ CREATE TABLE IF NOT EXISTS `roles` (
+@@ -905,6 +943,7 @@ CREATE TABLE IF NOT EXISTS `roles` (
    `perm_decaying` tinyint(1) NOT NULL DEFAULT 0,
    `enforce_rate_limit` tinyint(1) NOT NULL DEFAULT 0,
    `rate_limit_count` int(11) NOT NULL DEFAULT 0,
@@ -91,7 +89,7 @@ index 4c0dee91e..0e3e6f800 100644
    PRIMARY KEY (`id`)
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
  
-@@ -923,6 +964,8 @@ CREATE TABLE IF NOT EXISTS `servers` (
+@@ -923,6 +962,8 @@ CREATE TABLE IF NOT EXISTS `servers` (
    `push` tinyint(1) NOT NULL,
    `pull` tinyint(1) NOT NULL,
    `push_sightings` tinyint(1) NOT NULL DEFAULT 0,
@@ -100,7 +98,7 @@ index 4c0dee91e..0e3e6f800 100644
    `lastpulledid` int(11) DEFAULT NULL,
    `lastpushedid` int(11) DEFAULT NULL,
    `organization` varchar(10) COLLATE utf8_bin DEFAULT NULL,
-@@ -933,7 +976,9 @@ CREATE TABLE IF NOT EXISTS `servers` (
+@@ -933,7 +974,9 @@ CREATE TABLE IF NOT EXISTS `servers` (
    `pull_rules` text COLLATE utf8_bin NOT NULL,
    `push_rules` text COLLATE utf8_bin NOT NULL,
    `cert_file` varchar(255) COLLATE utf8_bin DEFAULT NULL,
@@ -110,7 +108,7 @@ index 4c0dee91e..0e3e6f800 100644
    `internal` tinyint(1) NOT NULL DEFAULT 0,
    `skip_proxy` tinyint(1) NOT NULL DEFAULT 0,
    `caching_enabled` tinyint(1) NOT NULL DEFAULT 0,
-@@ -947,7 +992,7 @@ CREATE TABLE IF NOT EXISTS `servers` (
+@@ -947,7 +990,7 @@ CREATE TABLE IF NOT EXISTS `servers` (
  -- --------------------------------------------------------
  
  --
@@ -119,7 +117,7 @@ index 4c0dee91e..0e3e6f800 100644
  --
  
  CREATE TABLE IF NOT EXISTS `shadow_attributes` (
-@@ -1164,6 +1209,8 @@ CREATE TABLE IF NOT EXISTS `tags` (
+@@ -1164,6 +1207,8 @@ CREATE TABLE IF NOT EXISTS `tags` (
    `user_id` int(11) NOT NULL DEFAULT 0,
    `hide_tag` tinyint(1) NOT NULL DEFAULT 0,
    `numerical_value` int(11) NULL,
@@ -128,6 +126,40 @@ index 4c0dee91e..0e3e6f800 100644
    PRIMARY KEY (`id`),
    INDEX `name` (`name`(255)),
    INDEX `org_id` (`org_id`),
+@@ -1472,12 +1517,32 @@ CREATE TABLE IF NOT EXISTS `warninglist_types` (
+ 
+ -- --------------------------------------------------------
+ 
++CREATE TABLE IF NOT EXISTS `cerebrates` (
++  `id` int(11) NOT NULL AUTO_INCREMENT,
++  `name` varchar(191) NOT NULL,
++  `url` varchar(255) NOT NULL,
++  `authkey` varchar(40) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
++  `open` tinyint(1) DEFAULT 0,
++  `org_id` int(11) NOT NULL,
++  `pull_orgs` tinyint(1) DEFAULT 0,
++  `pull_sharing_groups` tinyint(1) DEFAULT 0,
++  `self_signed` tinyint(1) DEFAULT 0,
++  `cert_file` varchar(255) DEFAULT NULL,
++  `client_cert_file` varchar(255) DEFAULT NULL,
++  `internal` tinyint(1) NOT NULL DEFAULT 0,
++  `skip_proxy` tinyint(1) NOT NULL DEFAULT 0,
++  `description` text,
++  PRIMARY KEY (`id`),
++  KEY `url` (`url`),
++  KEY `org_id` (`org_id`)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
++
+ --
+ -- Default values for initial installation
+ --
+ 
+ INSERT IGNORE INTO `admin_settings` (`id`, `setting`, `value`) VALUES
+-(1, 'db_version', '61');
++(1, 'db_version', '64');
+ 
+ INSERT IGNORE INTO `feeds` (`id`, `provider`, `name`, `url`, `distribution`, `default`, `enabled`) VALUES
+ (1, 'CIRCL', 'CIRCL OSINT Feed', 'https://www.circl.lu/doc/misp/feed-osint', 3, 1, 0),
 diff --git a/INSTALL/MYSQL.upgrade.sql b/INSTALL/MYSQL.upgrade.sql
 new file mode 100644
 index 000000000..65d3e4314
