@@ -599,12 +599,6 @@ sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.proposals_block_attributes"
 sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.email" "$SENDER_ADDRESS"
 sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/.gnupg"
 if [ -n "${MISP_PGP_PVTPASS}" ]; then sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.password" "${MISP_PGP_PVTPASS}"; fi
-sudo $Q >/dev/null 2>&1 $CAKE Admin updateGalaxies
-sudo $Q >/dev/null 2>&1 $CAKE Admin updateTaxonomies
-sudo $Q >/dev/null 2>&1 $CAKE Admin updateWarningLists
-sudo $Q >/dev/null 2>&1 $CAKE Admin updateNoticeLists
-#sudo $Q >/dev/null 2>&1 $CAKE Admin updateObjectTemplates
-sudo $Q >/dev/null 2>&1 $CAKE Live 1
 
 if [ "$PHP_DEBUG" == true ]; then
     if pecl install xdebug; then
@@ -635,6 +629,14 @@ sudo chmod -R 750 ${MISP_BASE_PATH}/app/Config
 
 # delete pid file
 [ -f $ENTRYPOINT_PID_FILE ] && rm $ENTRYPOINT_PID_FILE
+
+sudo $Q -u www-data $CAKE Admin runUpdates
+sudo $Q $CAKE Admin updateGalaxies
+sudo $Q $CAKE Admin updateTaxonomies
+sudo $Q $CAKE Admin updateWarningLists
+sudo $Q $CAKE Admin updateNoticeLists
+#sudo $Q >/dev/null 2>&1 $CAKE Admin updateObjectTemplates
+sudo $Q $CAKE Live 1
 
 # START APACHE2
 echo "$STARTMSG ####################################  started Apache2 with cmd: '$CMD_APACHE' ####################################"
