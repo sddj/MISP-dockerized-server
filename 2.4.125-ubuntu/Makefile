@@ -15,6 +15,10 @@ build:
 	 -t ${SRC_TAGGED_IMAGE}\
 	 .
 
+.PHONY: patch
+patch:
+	cd ../../MISP && git diff -u 2.4 >../MISP-dockerized-server/2.4.125-ubuntu/files/patches.d/10-misp.patch
+
 .PHONY: push
 push: misp-server.push
 
