@@ -533,25 +533,44 @@ index 5630844fe..3be5641a8 100644
       * @return AWSS3Client
       */
 diff --git a/app/Lib/Tools/SyncTool.php b/app/Lib/Tools/SyncTool.php
-index 94d8d308e..90a5b6423 100644
+index 94d8d308e..dde71aac5 100644
 --- a/app/Lib/Tools/SyncTool.php
 +++ b/app/Lib/Tools/SyncTool.php
-@@ -9,9 +9,15 @@ class SyncTool
+@@ -1,5 +1,7 @@
+ <?php
+ 
++App::uses('FileAccessTool', 'Tools');
++
+ class SyncTool
+ {
+     // take a server as parameter and return a HttpSocket object using the ssl options defined in the server settings
+@@ -7,11 +9,13 @@ class SyncTool
+     {
+         $params = array();
          if (!empty($server)) {
-             if (!empty($server[$model]['cert_file'])) {
+-            if (!empty($server[$model]['cert_file'])) {
++            if (!empty($server[$model]['cert_file']) && !empty($server[$model]['cert_content'])) {
                  $params['ssl_cafile'] = APP . "files" . DS . "certs" . DS . $server[$model]['id'] . '.pem';
-+                if (!file_exists($params['ssl_cafile'])) {
-+                    (new FileAccessTool())->writeToFile($params['ssl_cafile'], $server[$model]['cert_content']);
-+                }
++                (new FileAccessTool())->writeToFile($params['ssl_cafile'], $server[$model]['cert_content']);
              }
-             if (!empty($server[$model]['client_cert_file'])) {
+-            if (!empty($server[$model]['client_cert_file'])) {
++            if (!empty($server[$model]['client_cert_file']) && !empty($server[$model]['client_cert_content'])) {
                  $params['ssl_local_cert'] = APP . "files" . DS . "certs" . DS . $server[$model]['id'] . '_client.pem';
-+                if (!file_exists($params['ssl_local_cert'])) {
-+                    (new FileAccessTool())->writeToFile($params['ssl_local_cert'], $server[$model]['client_cert_content']);
-+                }
++                (new FileAccessTool())->writeToFile($params['ssl_local_cert'], $server[$model]['client_cert_content']);
              }
              if (!empty($server[$model]['self_signed'])) {
                  $params['ssl_allow_self_signed'] = true;
+@@ -72,6 +76,10 @@ class SyncTool
+             return;
+         }
+ 
++        if (!empty($server['Server']['client_cert_content'])) {
++            return self::getClientCertificateInfo($server['Server']['client_cert_content']);
++        }
++
+         $clientCertificate = new File(APP . "files" . DS . "certs" . DS . $server['Server']['id'] . '_client.pem');
+         if (!$clientCertificate->exists()) {
+             throw new Exception("Certificate file '{$clientCertificate->pwd()}' doesn't exists.");
 diff --git a/app/Model/AppModel.php b/app/Model/AppModel.php
 index 509cceead..6db444e68 100644
 --- a/app/Model/AppModel.php

@@ -61,11 +61,11 @@ MISP_APP_CONFIG_PATH=$MISP_APP_PATH/Config
 MISP_CONFIG=$MISP_APP_CONFIG_PATH/config.php
 DATABASE_CONFIG=$MISP_APP_CONFIG_PATH/database.php
 EMAIL_CONFIG=$MISP_APP_CONFIG_PATH/email.php
-CAKE_CONFIG="/var/www/MISP/app/Plugin/CakeResque/Config/config.php"
+CAKE_CONFIG="${MISP_APP_PATH}/Plugin/CakeResque/Config/config.php"
 SSL_CERT="/etc/apache2/ssl/cert.pem"
 SSL_KEY="/etc/apache2/ssl/key.pem"
 SSL_DH_FILE="/etc/apache2/ssl/dhparams.pem"
-FOLDER_with_VERSIONS="/var/www/MISP/app/tmp /var/www/MISP/app/files /var/www/MISP/app/Plugin/CakeResque/Config /var/www/MISP/app/Config /var/www/MISP/.gnupg /var/www/MISP/.smime /etc/apache2/ssl"
+FOLDER_with_VERSIONS="${MISP_APP_PATH}/tmp ${MISP_APP_PATH}/files ${MISP_APP_PATH}/Plugin/CakeResque/Config ${MISP_APP_PATH}/Config /var/www/MISP/.gnupg /var/www/MISP/.smime /etc/apache2/ssl"
 PID_CERT_CREATER="/etc/apache2/ssl/SSL_create.pid"
 
 # defaults
@@ -166,11 +166,11 @@ init_smime(){
         chown www-data:www-data /var/www/MISP/.smime
         chmod 500 /var/www/MISP/.smime
         ## the public certificate (for Encipherment) to the webroot
-        sudo -u www-data sh -c "cp /var/www/MISP/.smime/cert.pem /var/www/MISP/app/webroot/public_certificate.pem"
+        sudo -u www-data sh -c "cp /var/www/MISP/.smime/cert.pem ${MISP_APP_PATH}/webroot/public_certificate.pem"
         #Due to this action, the MISP users will be able to download your public certificate (for Encipherment) by clicking on the footer
         ### Set permissions
-        #chown www-data:www-data /var/www/MISP/app/webroot/public_certificate.pem
-        sudo -u www-data sh -c "chmod 440 /var/www/MISP/app/webroot/public_certificate.pem"
+        #chown www-data:www-data ${MISP_APP_PATH}/webroot/public_certificate.pem
+        sudo -u www-data sh -c "chmod 440 ${MISP_APP_PATH}/webroot/public_certificate.pem"
     fi
     
 }
@@ -185,7 +185,7 @@ start_apache() {
 }
 
 add_analyze_column(){
-    ORIG_FILE="/var/www/MISP/app/View/Elements/Events/eventIndexTable.ctp"
+    ORIG_FILE="${MISP_APP_PATH}/View/Elements/Events/eventIndexTable.ctp"
     PATCH_FILE="/eventIndexTable.patch"
 
     # Backup Orig File
@@ -264,7 +264,7 @@ init_misp_config(){
 }
 
 setup_python_venv_CAKE(){
-    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/usr/bin/python" /var/www/MISP/app/Config/config.php; then
+    if grep -q "${MISP_MODULES_URL}" ${MISP_APP_PATH}/Config/config.php && grep -q "/usr/bin/python" ${MISP_APP_PATH}/Config/config.php; then
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting python venv via CAKE..."
@@ -274,7 +274,7 @@ setup_python_venv_CAKE(){
 }
 
 setup_redis_CAKE(){
-    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/usr/bin/python" /var/www/MISP/app/Config/config.php; then
+    if grep -q "${MISP_MODULES_URL}" ${MISP_APP_PATH}/Config/config.php && grep -q "/usr/bin/python" ${MISP_APP_PATH}/Config/config.php; then
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting Redis settings via CAKE..."
@@ -290,7 +290,7 @@ setup_misp_modules_CAKE(){
     #if [[ ! -e $MISP_APP_CONFIG_PATH/core.php ]]; then
 
     ### We assume that both the python venv and misp modules are unset - if not, the instance was allready configured 
-    if grep -q "${MISP_MODULES_URL}" /var/www/MISP/app/Config/config.php && grep -q "/usr/bin/python" /var/www/MISP/app/Config/config.php; then
+    if grep -q "${MISP_MODULES_URL}" ${MISP_APP_PATH}/Config/config.php && grep -q "/usr/bin/python" ${MISP_APP_PATH}/Config/config.php; then
         echo "$STARTMSG MISP initial configuration allready done - skipping"
     else
         echo "$STARTMSG Setting MISP-Modules settings via CAKE..."
@@ -529,6 +529,8 @@ upgrade(){
 
 ##############   MAIN   #################
 
+mkdir -p "${MISP_APP_PATH}/files/certs"
+
 echo "$STARTMSG Apply patches ..." && patch_misp
 
 # If a customer needs a analze column in misp
@@ -601,18 +603,19 @@ sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/
 if [ -n "${MISP_PGP_PVTPASS}" ]; then sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.password" "${MISP_PGP_PVTPASS}"; fi
 
 if [ "$PHP_DEBUG" == true ]; then
+    php_ini="$(ls /etc/php/*/apache2/php.ini)"
+    pear config-set php_ini "${php_ini}"
     if pecl install xdebug; then
-        for FILE in $(ls /etc/php/*/apache2/php.ini); do
-            (
-                echo "[xdebug]"
-                echo "xdebug.remote_enable=1"
-                echo "xdebug.remote_host=host.docker.internal"
-                echo "xdebug.remote_port=9000"
-                echo "zend_extension=/usr/lib/php/20190902/xdebug.so"
-            )>>"$FILE"
-        done
-        (echo '<?php'; echo 'phpinfo();') >app/webroot/info.php
-        chmod +x app/webroot/info.php
+        (
+            echo "[xdebug]"
+            echo "xdebug.mode=debug"
+            echo "xdebug.client_host=host.docker.internal"
+            echo "xdebug.client_port=9000"
+        )>>"${php_ini}"
+        (echo '<?php'; echo 'phpinfo();') >app/webroot/php-info.php
+        (echo '<?php'; echo 'var_dump(php_ini_loaded_file(), php_ini_scanned_files());') >app/webroot/php-path.php
+        (echo '<?php'; echo 'xdebug_info();') >app/webroot/php-xdebug.php
+        chmod +x app/webroot/php-{info,path,xdebug}.php
     fi
 fi
 
@@ -621,9 +624,9 @@ echo "$STARTMSG Configure MISP | Check if permissions are still ok..."
 #echo "$STARTMSG ... chown -R www-data.www-data /var/www/MISP..." && chown -R www-data.www-data /var/www/MISP
 #echo "$STARTMSG ... chown -R www-data.www-data /var/www/MISP..." && find /var/www/MISP -not -user www-data -exec chown www-data.www-data {} +
 #echo "$STARTMSG ... chmod -R 0750 /var/www/MISP..." && find /var/www/MISP -perm 550 -type f -exec chmod 0550 {} + && find /var/www/MISP -perm 770 -type d -exec chmod 0770 {} +
-#echo "$STARTMSG ... chmod -R g+ws /var/www/MISP/app/tmp..." && chmod -R g+ws /var/www/MISP/app/tmp
-#echo "$STARTMSG ... chmod -R g+ws /var/www/MISP/app/files..." && chmod -R g+ws /var/www/MISP/app/files
-#echo "$STARTMSG ... chmod -R g+ws /var/www/MISP/app/files/scripts/tmp" && chmod -R g+ws /var/www/MISP/app/files/scripts/tmp
+#echo "$STARTMSG ... chmod -R g+ws ${MISP_APP_PATH}/tmp..." && chmod -R g+ws ${MISP_APP_PATH}/tmp
+#echo "$STARTMSG ... chmod -R g+ws ${MISP_APP_PATH}/files..." && chmod -R g+ws ${MISP_APP_PATH}/files
+#echo "$STARTMSG ... chmod -R g+ws ${MISP_APP_PATH}/files/scripts/tmp" && chmod -R g+ws ${MISP_APP_PATH}/files/scripts/tmp
 sudo chown -R www-data:www-data ${MISP_BASE_PATH}/*
 sudo chmod -R 750 ${MISP_BASE_PATH}/app/Config
 
