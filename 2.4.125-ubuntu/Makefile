@@ -23,8 +23,8 @@ patch:
 push: misp-server.push
 
 %.push:
-	if [ -f $$HOME/r/opt/aws/bin/activate ]; then . $$HOME/r/opt/aws/bin/activate; fi\
-	&& $$(aws ecr get-login --no-include-email)\
+	AWS_REPOHOST=$$(aws ecr describe-repositories|jq -r '.repositories[0]|.repositoryUri|split("/")[0]')\
+        && (aws ecr get-login-password|docker login --username AWS --password-stdin "https://$${AWS_REPOHOST}")\
 	&& DST_TAGGED_IMAGE=$$(bin/image-repo-tag $*)\
 	&& docker tag ${SRC_TAGGED_IMAGE} $$DST_TAGGED_IMAGE\
 	&& docker push $$DST_TAGGED_IMAGE\
