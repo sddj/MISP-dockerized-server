@@ -180,6 +180,11 @@ start_apache() {
     if [[ -e /run/apache2/apache2.pid ]]; then
         rm -f /run/apache2/apache2.pid
     fi
+    # Allow errors from commands (like ulimit) in apache2ctl without failing
+    set +e
+    if ! ulimit -n 8192 2>/dev/null; then
+        export ULIMIT_MAX_FILES=true
+    fi
     # execute APACHE2
     /usr/sbin/apache2ctl -DFOREGROUND "$@"
 }
