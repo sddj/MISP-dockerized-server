@@ -304,6 +304,7 @@ setup_misp_modules_CAKE(){
         sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_services_port" "${MISP_MODULES_PORT}"
         sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_services_enable" true
         sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_hover_enable" true
+        sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_hover_popover_only" true
         sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_timeout" 300
         sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_hover_timeout" 150
         sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Plugin.Enrichment_cve_advanced_enabled" true
@@ -606,6 +607,7 @@ sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "MISP.proposals_block_attributes"
 sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.email" "$SENDER_ADDRESS"
 sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.homedir" "$MISP_BASE_PATH/.gnupg"
 if [ -n "${MISP_PGP_PVTPASS}" ]; then sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "GnuPG.password" "${MISP_PGP_PVTPASS}"; fi
+sudo $Q >/dev/null 2>&1 $CAKE Admin setSetting "Security.advanced_authkeys" "true"
 
 if [ "$PHP_DEBUG" == true ]; then
     php_ini="$(ls /etc/php/*/apache2/php.ini)"

@@ -183,10 +183,10 @@ index 000000000..65d3e4314
 +  COLLATE = utf8_bin;
 \ No newline at end of file
 diff --git a/app/Controller/ServersController.php b/app/Controller/ServersController.php
-index d82fda6a9..76ace3756 100644
+index 8609a3b00..3e1bd9d9f 100644
 --- a/app/Controller/ServersController.php
 +++ b/app/Controller/ServersController.php
-@@ -846,10 +846,12 @@ class ServersController extends AppController
+@@ -853,10 +853,12 @@ class ServersController extends AppController
          if ($client) {
              $subm = 'submitted_client_cert';
              $attr = 'client_cert_file';
@@ -199,7 +199,7 @@ index d82fda6a9..76ace3756 100644
              $ins  = '';
          }
          if (!$delete) {
-@@ -882,6 +884,7 @@ class ServersController extends AppController
+@@ -889,6 +891,7 @@ class ServersController extends AppController
              $pemfile = new File($destpath . $id . $ins . '.' . $ext);
              $result = $pemfile->write($pemData);
              $s = $this->Server->read(null, $id);
@@ -207,7 +207,7 @@ index d82fda6a9..76ace3756 100644
              $s['Server'][$attr] = $s['Server']['id'] . $ins . '.' . $ext;
              if ($result) {
                  $this->Server->save($s);
-@@ -889,6 +892,7 @@ class ServersController extends AppController
+@@ -896,6 +899,7 @@ class ServersController extends AppController
          } else {
              $s = $this->Server->read(null, $id);
              $s['Server'][$attr] = '';
@@ -533,7 +533,7 @@ index 5630844fe..3be5641a8 100644
       * @return AWSS3Client
       */
 diff --git a/app/Lib/Tools/SyncTool.php b/app/Lib/Tools/SyncTool.php
-index 94d8d308e..dde71aac5 100644
+index 4f3d87974..b6c074553 100644
 --- a/app/Lib/Tools/SyncTool.php
 +++ b/app/Lib/Tools/SyncTool.php
 @@ -1,5 +1,7 @@
@@ -543,10 +543,10 @@ index 94d8d308e..dde71aac5 100644
 +
  class SyncTool
  {
-     // take a server as parameter and return a HttpSocket object using the ssl options defined in the server settings
-@@ -7,11 +9,13 @@ class SyncTool
+     /**
+@@ -14,11 +16,13 @@ class SyncTool
      {
-         $params = array();
+         $params = ['compress' => true];
          if (!empty($server)) {
 -            if (!empty($server[$model]['cert_file'])) {
 +            if (!empty($server[$model]['cert_file']) && !empty($server[$model]['cert_content'])) {
@@ -560,7 +560,7 @@ index 94d8d308e..dde71aac5 100644
              }
              if (!empty($server[$model]['self_signed'])) {
                  $params['ssl_allow_self_signed'] = true;
-@@ -72,6 +76,10 @@ class SyncTool
+@@ -79,6 +83,10 @@ class SyncTool
              return;
          }
  
@@ -572,10 +572,10 @@ index 94d8d308e..dde71aac5 100644
          if (!$clientCertificate->exists()) {
              throw new Exception("Certificate file '{$clientCertificate->pwd()}' doesn't exists.");
 diff --git a/app/Model/AppModel.php b/app/Model/AppModel.php
-index 509cceead..6db444e68 100644
+index 1bb8814a4..3e7e2b394 100644
 --- a/app/Model/AppModel.php
 +++ b/app/Model/AppModel.php
-@@ -1485,7 +1485,7 @@ class AppModel extends Model
+@@ -1486,7 +1486,7 @@ class AppModel extends Model
                  $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `extends_uuid` varchar(40) COLLATE utf8_bin DEFAULT '';";
                  $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `extends_version` int(11) DEFAULT 0;";
                  $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `published` tinyint(1) NOT NULL DEFAULT 0;";
@@ -584,6 +584,22 @@ index 509cceead..6db444e68 100644
                  $sqlArray[] = "ALTER TABLE `roles` ADD `perm_galaxy_editor` tinyint(1) NOT NULL DEFAULT 0;";
  
                  $sqlArray[] = "UPDATE `roles` SET `perm_galaxy_editor`=1 WHERE `perm_tag_editor`=1;";
+@@ -1566,6 +1566,15 @@ class AppModel extends Model
+                     PRIMARY KEY (`id`),
+                     INDEX `value` (`value`(255))
+                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
++                $sqlArray[] = "ALTER TABLE `servers` ADD COLUMN `client_cert_content` text DEFAULT NULL;";
++                $sqlArray[] = "ALTER TABLE `servers` ADD COLUMN `cert_content` text DEFAULT NULL;";
++                $sqlArray[] = "CREATE TABLE IF NOT EXISTS `attachments` (
++                    `id`           int(11) PRIMARY KEY AUTO_INCREMENT,
++                    `attribute_id` int(11) NOT NULL,
++                    `event_id`     int(11) NOT NULL,
++                    `data`         mediumtext,
++                    UNIQUE (`attribute_id`, `event_id`)
++                ) ENGINE = InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;";
+                 break;
+             case 'fixNonEmptySharingGroupID':
+                 $sqlArray[] = 'UPDATE `events` SET `sharing_group_id` = 0 WHERE `distribution` != 4;';
 diff --git a/app/Model/AttributeAttachment.php b/app/Model/AttributeAttachment.php
 new file mode 100644
 index 000000000..1b352165a
@@ -602,7 +618,7 @@ index 000000000..1b352165a
 +}
 \ No newline at end of file
 diff --git a/app/Model/Server.php b/app/Model/Server.php
-index 601871726..39e8a85b8 100644
+index 6ed857cd7..d59c1c1da 100644
 --- a/app/Model/Server.php
 +++ b/app/Model/Server.php
 @@ -1,6 +1,8 @@
@@ -612,9 +628,9 @@ index 601871726..39e8a85b8 100644
 +App::uses('AWSS3Client', 'Tools');
 +
  
- class Server extends AppModel
- {
-@@ -3831,6 +3833,20 @@ class Server extends AppModel
+ /**
+  * @property-read array $serverSettings
+@@ -1549,6 +1551,20 @@ class Server extends AppModel
  
      public function testForWritableDir($value)
      {
@@ -636,7 +652,7 @@ index 601871726..39e8a85b8 100644
              return 'Phar protocol not allowed.';
          }
 diff --git a/app/files/scripts/stix2/stix2misp.py b/app/files/scripts/stix2/stix2misp.py
-index 81c050abc..27538a4a5 100644
+index b44e86121..2efb8dd88 100644
 --- a/app/files/scripts/stix2/stix2misp.py
 +++ b/app/files/scripts/stix2/stix2misp.py
 @@ -15,7 +15,7 @@
@@ -696,7 +712,7 @@ index 81c050abc..27538a4a5 100644
          return pattern_type.strip(), pattern_value.strip("'")
  
      def handle_import_case(self, stix_object, attributes, name, _force_object=False):
-@@ -2046,7 +2045,7 @@ def from_misp(stix_objects):
+@@ -2050,7 +2049,7 @@ def from_misp(stix_objects):
  def main(args):
      filename = Path(os.path.dirname(args[0]), args[1])
      with open(filename, 'rt', encoding='utf-8') as f:
@@ -705,3 +721,89 @@ index 81c050abc..27538a4a5 100644
      stix_parser = StixFromMISPParser() if from_misp(event.objects) else ExternalStixParser()
      stix_parser.handler(event, filename, args[2:])
      stix_parser.save_file()
+diff --git a/db_schema.json b/db_schema.json
+index f2427a0c0..bdc99c75f 100644
+--- a/db_schema.json
++++ b/db_schema.json
+@@ -5123,6 +5123,28 @@
+                 "column_type": "int(11)",
+                 "column_default": "0",
+                 "extra": ""
++            },
++            {
++                "column_name": "client_cert_content",
++                "is_nullable": "YES",
++                "data_type": "text",
++                "character_maximum_length": "65535",
++                "numeric_precision": null,
++                "collation_name": "utf8_bin",
++                "column_type": "text",
++                "column_default": null,
++                "extra": ""
++            },
++            {
++                "column_name": "cert_content",
++                "is_nullable": "YES",
++                "data_type": "text",
++                "character_maximum_length": "65535",
++                "numeric_precision": null,
++                "collation_name": "utf8_bin",
++                "column_type": "text",
++                "column_default": null,
++                "extra": ""
+             }
+         ],
+         "shadow_attributes": [
+@@ -7534,6 +7556,52 @@
+                 "column_default": null,
+                 "extra": ""
+             }
++        ],
++        "attachments": [
++            {
++                "column_name": "id",
++                "is_nullable": "NO",
++                "data_type": "int",
++                "character_maximum_length": null,
++                "numeric_precision": "10",
++                "collation_name": null,
++                "column_type": "int(11)",
++                "column_default": null,
++                "extra": "auto_increment"
++            },
++            {
++                "column_name": "attribute_id",
++                "is_nullable": "NO",
++                "data_type": "int",
++                "character_maximum_length": null,
++                "numeric_precision": "10",
++                "collation_name": null,
++                "column_type": "int(11)",
++                "column_default": null,
++                "extra": ""
++            },
++            {
++                "column_name": "event_id",
++                "is_nullable": "NO",
++                "data_type": "int",
++                "character_maximum_length": null,
++                "numeric_precision": "10",
++                "collation_name": null,
++                "column_type": "int(11)",
++                "column_default": null,
++                "extra": ""
++            },
++            {
++                "column_name": "data",
++                "is_nullable": "NO",
++                "data_type": "mediumtext",
++                "character_maximum_length": "16777215",
++                "numeric_precision": null,
++                "collation_name": "utf8_bin",
++                "column_type": "mediumtext",
++                "column_default": null,
++                "extra": ""
++            }
+         ]
+     },
+     "indexes": {
