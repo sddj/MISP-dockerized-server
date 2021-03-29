@@ -637,6 +637,7 @@ echo "$STARTMSG Configure MISP | Check if permissions are still ok..."
 sudo chown -R www-data:www-data ${MISP_BASE_PATH}
 sudo find ${MISP_BASE_PATH} -type d -exec chmod 0550 {} \;
 sudo find ${FOLDER_with_VERSIONS} -type d -exec chmod 3770 {} \;
+sudo find ${MISP_APP_PATH}/Plugin/CakeResque/tmp -type d -exec chmod 3770 {} \;
 
 # delete pid file
 [ -f $ENTRYPOINT_PID_FILE ] && rm $ENTRYPOINT_PID_FILE
