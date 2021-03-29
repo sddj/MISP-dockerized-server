@@ -1,5 +1,5 @@
 diff --git a/INSTALL/MYSQL.sql b/INSTALL/MYSQL.sql
-index 4c0dee91e..e61abd68b 100644
+index 284128120..2b3e70ca8 100644
 --- a/INSTALL/MYSQL.sql
 +++ b/INSTALL/MYSQL.sql
 @@ -68,6 +68,16 @@ CREATE TABLE IF NOT EXISTS `attributes` (
@@ -19,7 +19,7 @@ index 4c0dee91e..e61abd68b 100644
  -- -------------------------------------------------------
  
  --
-@@ -461,6 +471,16 @@ CREATE TABLE IF NOT EXISTS `galaxy_clusters` (
+@@ -462,6 +472,16 @@ CREATE TABLE IF NOT EXISTS `galaxy_clusters` (
    `source` varchar(255) COLLATE utf8_bin NOT NULL DEFAULT '',
    `authors` text COLLATE utf8_bin NOT NULL,
    `version` int(11) DEFAULT 0,
@@ -36,7 +36,7 @@ index 4c0dee91e..e61abd68b 100644
    PRIMARY KEY (id),
    INDEX `value` (`value`(255)),
    INDEX `uuid` (`uuid`),
-@@ -491,22 +511,40 @@ CREATE TABLE IF NOT EXISTS `galaxy_elements` (
+@@ -492,22 +512,40 @@ CREATE TABLE IF NOT EXISTS `galaxy_elements` (
  -- -------------------------------------------------------
  
  --
@@ -81,7 +81,7 @@ index 4c0dee91e..e61abd68b 100644
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
  
  CREATE TABLE IF NOT EXISTS inbox (
-@@ -905,6 +943,7 @@ CREATE TABLE IF NOT EXISTS `roles` (
+@@ -906,6 +944,7 @@ CREATE TABLE IF NOT EXISTS `roles` (
    `perm_decaying` tinyint(1) NOT NULL DEFAULT 0,
    `enforce_rate_limit` tinyint(1) NOT NULL DEFAULT 0,
    `rate_limit_count` int(11) NOT NULL DEFAULT 0,
@@ -89,7 +89,7 @@ index 4c0dee91e..e61abd68b 100644
    PRIMARY KEY (`id`)
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
  
-@@ -923,6 +962,8 @@ CREATE TABLE IF NOT EXISTS `servers` (
+@@ -924,6 +963,8 @@ CREATE TABLE IF NOT EXISTS `servers` (
    `push` tinyint(1) NOT NULL,
    `pull` tinyint(1) NOT NULL,
    `push_sightings` tinyint(1) NOT NULL DEFAULT 0,
@@ -98,7 +98,7 @@ index 4c0dee91e..e61abd68b 100644
    `lastpulledid` int(11) DEFAULT NULL,
    `lastpushedid` int(11) DEFAULT NULL,
    `organization` varchar(10) COLLATE utf8_bin DEFAULT NULL,
-@@ -933,7 +974,9 @@ CREATE TABLE IF NOT EXISTS `servers` (
+@@ -934,7 +975,9 @@ CREATE TABLE IF NOT EXISTS `servers` (
    `pull_rules` text COLLATE utf8_bin NOT NULL,
    `push_rules` text COLLATE utf8_bin NOT NULL,
    `cert_file` varchar(255) COLLATE utf8_bin DEFAULT NULL,
@@ -108,7 +108,7 @@ index 4c0dee91e..e61abd68b 100644
    `internal` tinyint(1) NOT NULL DEFAULT 0,
    `skip_proxy` tinyint(1) NOT NULL DEFAULT 0,
    `caching_enabled` tinyint(1) NOT NULL DEFAULT 0,
-@@ -947,7 +990,7 @@ CREATE TABLE IF NOT EXISTS `servers` (
+@@ -948,7 +991,7 @@ CREATE TABLE IF NOT EXISTS `servers` (
  -- --------------------------------------------------------
  
  --
@@ -117,7 +117,7 @@ index 4c0dee91e..e61abd68b 100644
  --
  
  CREATE TABLE IF NOT EXISTS `shadow_attributes` (
-@@ -1164,6 +1207,8 @@ CREATE TABLE IF NOT EXISTS `tags` (
+@@ -1165,6 +1208,8 @@ CREATE TABLE IF NOT EXISTS `tags` (
    `user_id` int(11) NOT NULL DEFAULT 0,
    `hide_tag` tinyint(1) NOT NULL DEFAULT 0,
    `numerical_value` int(11) NULL,
@@ -126,7 +126,7 @@ index 4c0dee91e..e61abd68b 100644
    PRIMARY KEY (`id`),
    INDEX `name` (`name`(255)),
    INDEX `org_id` (`org_id`),
-@@ -1472,12 +1517,32 @@ CREATE TABLE IF NOT EXISTS `warninglist_types` (
+@@ -1473,12 +1518,32 @@ CREATE TABLE IF NOT EXISTS `warninglist_types` (
  
  -- --------------------------------------------------------
  
@@ -183,10 +183,10 @@ index 000000000..65d3e4314
 +  COLLATE = utf8_bin;
 \ No newline at end of file
 diff --git a/app/Controller/ServersController.php b/app/Controller/ServersController.php
-index 8609a3b00..3e1bd9d9f 100644
+index d8eb3a38c..f6acfc1b3 100644
 --- a/app/Controller/ServersController.php
 +++ b/app/Controller/ServersController.php
-@@ -853,10 +853,12 @@ class ServersController extends AppController
+@@ -876,10 +876,12 @@ class ServersController extends AppController
          if ($client) {
              $subm = 'submitted_client_cert';
              $attr = 'client_cert_file';
@@ -199,7 +199,7 @@ index 8609a3b00..3e1bd9d9f 100644
              $ins  = '';
          }
          if (!$delete) {
-@@ -889,6 +891,7 @@ class ServersController extends AppController
+@@ -912,6 +914,7 @@ class ServersController extends AppController
              $pemfile = new File($destpath . $id . $ins . '.' . $ext);
              $result = $pemfile->write($pemData);
              $s = $this->Server->read(null, $id);
@@ -207,7 +207,7 @@ index 8609a3b00..3e1bd9d9f 100644
              $s['Server'][$attr] = $s['Server']['id'] . $ins . '.' . $ext;
              if ($result) {
                  $this->Server->save($s);
-@@ -896,6 +899,7 @@ class ServersController extends AppController
+@@ -919,6 +922,7 @@ class ServersController extends AppController
          } else {
              $s = $this->Server->read(null, $id);
              $s['Server'][$attr] = '';
@@ -533,7 +533,7 @@ index 5630844fe..3be5641a8 100644
       * @return AWSS3Client
       */
 diff --git a/app/Lib/Tools/SyncTool.php b/app/Lib/Tools/SyncTool.php
-index 4f3d87974..b6c074553 100644
+index b59a192b6..39a6853c1 100644
 --- a/app/Lib/Tools/SyncTool.php
 +++ b/app/Lib/Tools/SyncTool.php
 @@ -1,5 +1,7 @@
@@ -572,10 +572,10 @@ index 4f3d87974..b6c074553 100644
          if (!$clientCertificate->exists()) {
              throw new Exception("Certificate file '{$clientCertificate->pwd()}' doesn't exists.");
 diff --git a/app/Model/AppModel.php b/app/Model/AppModel.php
-index 1bb8814a4..3e7e2b394 100644
+index 09b4d622d..89364d667 100644
 --- a/app/Model/AppModel.php
 +++ b/app/Model/AppModel.php
-@@ -1486,7 +1486,7 @@ class AppModel extends Model
+@@ -1487,7 +1487,7 @@ class AppModel extends Model
                  $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `extends_uuid` varchar(40) COLLATE utf8_bin DEFAULT '';";
                  $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `extends_version` int(11) DEFAULT 0;";
                  $sqlArray[] = "ALTER TABLE `galaxy_clusters` ADD `published` tinyint(1) NOT NULL DEFAULT 0;";
@@ -584,7 +584,7 @@ index 1bb8814a4..3e7e2b394 100644
                  $sqlArray[] = "ALTER TABLE `roles` ADD `perm_galaxy_editor` tinyint(1) NOT NULL DEFAULT 0;";
  
                  $sqlArray[] = "UPDATE `roles` SET `perm_galaxy_editor`=1 WHERE `perm_tag_editor`=1;";
-@@ -1566,6 +1566,15 @@ class AppModel extends Model
+@@ -1567,6 +1567,15 @@ class AppModel extends Model
                      PRIMARY KEY (`id`),
                      INDEX `value` (`value`(255))
                  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
@@ -598,8 +598,8 @@ index 1bb8814a4..3e7e2b394 100644
 +                    UNIQUE (`attribute_id`, `event_id`)
 +                ) ENGINE = InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;";
                  break;
-             case 'fixNonEmptySharingGroupID':
-                 $sqlArray[] = 'UPDATE `events` SET `sharing_group_id` = 0 WHERE `distribution` != 4;';
+             case 66:
+                 $sqlArray[] = "ALTER TABLE `galaxy_clusters` MODIFY COLUMN `tag_name` varchar(255) COLLATE utf8_unicode_ci NOT NULL DEFAULT '';";
 diff --git a/app/Model/AttributeAttachment.php b/app/Model/AttributeAttachment.php
 new file mode 100644
 index 000000000..1b352165a
@@ -618,7 +618,7 @@ index 000000000..1b352165a
 +}
 \ No newline at end of file
 diff --git a/app/Model/Server.php b/app/Model/Server.php
-index 6ed857cd7..d59c1c1da 100644
+index 58c302353..b532fc36f 100644
 --- a/app/Model/Server.php
 +++ b/app/Model/Server.php
 @@ -1,6 +1,8 @@
@@ -630,7 +630,7 @@ index 6ed857cd7..d59c1c1da 100644
  
  /**
   * @property-read array $serverSettings
-@@ -1549,6 +1551,20 @@ class Server extends AppModel
+@@ -1579,6 +1581,20 @@ class Server extends AppModel
  
      public function testForWritableDir($value)
      {
@@ -722,10 +722,10 @@ index b44e86121..2efb8dd88 100644
      stix_parser.handler(event, filename, args[2:])
      stix_parser.save_file()
 diff --git a/db_schema.json b/db_schema.json
-index f2427a0c0..bdc99c75f 100644
+index 2ab2ffe0c..0ad71ed22 100644
 --- a/db_schema.json
 +++ b/db_schema.json
-@@ -5123,6 +5123,28 @@
+@@ -5134,6 +5134,28 @@
                  "column_type": "int(11)",
                  "column_default": "0",
                  "extra": ""
@@ -754,7 +754,7 @@ index f2427a0c0..bdc99c75f 100644
              }
          ],
          "shadow_attributes": [
-@@ -7534,6 +7556,52 @@
+@@ -7545,6 +7567,52 @@
                  "column_default": null,
                  "extra": ""
              }

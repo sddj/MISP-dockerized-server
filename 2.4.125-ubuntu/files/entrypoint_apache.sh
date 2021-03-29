@@ -141,8 +141,8 @@ init_pgp(){
             rm pass-file.$$
         fi
         chown -R www-data:www-data ${FOLDER}
-        find ${FOLDER} -type d -exec chmod 700 {} \;
-        find ${FOLDER} \( -type f -o -type s \) -exec chmod 600 {} \;
+        find ${FOLDER} -type d -exec chmod 750 {} \;
+        find ${FOLDER} \( -type f -o -type s \) -exec chmod 640 {} \;
 
         # Copy public key to the right place
         [ -f ${MISP_APP_PATH}/webroot/gpg.asc ] && rm ${MISP_APP_PATH}/webroot/gpg.asc
@@ -164,7 +164,7 @@ init_smime(){
         echo "$STARTMSG ###### S/MIME Cert exists and copy it to MISP webroot #######" 
         ### Set permissions
         chown www-data:www-data /var/www/MISP/.smime
-        chmod 500 /var/www/MISP/.smime
+        chmod 550 /var/www/MISP/.smime
         ## the public certificate (for Encipherment) to the webroot
         sudo -u www-data sh -c "cp /var/www/MISP/.smime/cert.pem ${MISP_APP_PATH}/webroot/public_certificate.pem"
         #Due to this action, the MISP users will be able to download your public certificate (for Encipherment) by clicking on the footer
@@ -634,8 +634,9 @@ echo "$STARTMSG Configure MISP | Check if permissions are still ok..."
 #echo "$STARTMSG ... chmod -R g+ws ${MISP_APP_PATH}/tmp..." && chmod -R g+ws ${MISP_APP_PATH}/tmp
 #echo "$STARTMSG ... chmod -R g+ws ${MISP_APP_PATH}/files..." && chmod -R g+ws ${MISP_APP_PATH}/files
 #echo "$STARTMSG ... chmod -R g+ws ${MISP_APP_PATH}/files/scripts/tmp" && chmod -R g+ws ${MISP_APP_PATH}/files/scripts/tmp
-sudo chown -R www-data:www-data ${MISP_BASE_PATH}/*
-sudo chmod -R 750 ${MISP_BASE_PATH}/app/Config
+sudo chown -R www-data:www-data ${MISP_BASE_PATH}
+sudo find ${MISP_BASE_PATH} -type d -exec chmod 0550 {} \;
+sudo find ${FOLDER_with_VERSIONS} -type d -exec chmod 3770 {} \;
 
 # delete pid file
 [ -f $ENTRYPOINT_PID_FILE ] && rm $ENTRYPOINT_PID_FILE

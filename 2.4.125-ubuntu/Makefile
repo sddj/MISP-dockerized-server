@@ -1,4 +1,4 @@
-VERSION=2.4.139
+VERSION=2.4.141
 SRC_TAGGED_IMAGE=dcso/misp-dockerized-server:${VERSION}
 DST_IMAGE=misp-server
 
