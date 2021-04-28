@@ -182,8 +182,15 @@ index 000000000..65d3e4314
 +  DEFAULT CHARSET = utf8
 +  COLLATE = utf8_bin;
 \ No newline at end of file
+diff --git a/PyMISP b/PyMISP
+index 357096f24..51edb8ab3 160000
+--- a/PyMISP
++++ b/PyMISP
+@@ -1 +1 @@
+-Subproject commit 357096f24c4f8d7dac87dfe0b9edad4f924f27a3
++Subproject commit 51edb8ab33c5ee6bd3b9b05ea5809299f37c4fbe
 diff --git a/app/Controller/ServersController.php b/app/Controller/ServersController.php
-index d8eb3a38c..f6acfc1b3 100644
+index 77575b598..350f3592a 100644
 --- a/app/Controller/ServersController.php
 +++ b/app/Controller/ServersController.php
 @@ -876,10 +876,12 @@ class ServersController extends AppController
@@ -572,7 +579,7 @@ index b59a192b6..39a6853c1 100644
          if (!$clientCertificate->exists()) {
              throw new Exception("Certificate file '{$clientCertificate->pwd()}' doesn't exists.");
 diff --git a/app/Model/AppModel.php b/app/Model/AppModel.php
-index 09b4d622d..89364d667 100644
+index 08bb47bc5..070b44797 100644
 --- a/app/Model/AppModel.php
 +++ b/app/Model/AppModel.php
 @@ -1487,7 +1487,7 @@ class AppModel extends Model
@@ -618,7 +625,7 @@ index 000000000..1b352165a
 +}
 \ No newline at end of file
 diff --git a/app/Model/Server.php b/app/Model/Server.php
-index 58c302353..b532fc36f 100644
+index 16f7ca679..25bc19560 100644
 --- a/app/Model/Server.php
 +++ b/app/Model/Server.php
 @@ -1,6 +1,8 @@
@@ -630,7 +637,7 @@ index 58c302353..b532fc36f 100644
  
  /**
   * @property-read array $serverSettings
-@@ -1579,6 +1581,20 @@ class Server extends AppModel
+@@ -1593,6 +1595,20 @@ class Server extends AppModel
  
      public function testForWritableDir($value)
      {
@@ -651,6 +658,20 @@ index 58c302353..b532fc36f 100644
          if (substr($value, 0, 7) === "phar://") {
              return 'Phar protocol not allowed.';
          }
+diff --git a/app/files/misp-galaxy b/app/files/misp-galaxy
+index ef9989dbe..eba33a1c9 160000
+--- a/app/files/misp-galaxy
++++ b/app/files/misp-galaxy
+@@ -1 +1 @@
+-Subproject commit ef9989dbe85d798b62ebfb8acfe23559292cde6f
++Subproject commit eba33a1c91c59b41dd9bc58d80ed3a1e54cdb2e1
+diff --git a/app/files/misp-objects b/app/files/misp-objects
+index 4b88a52cf..e1f01f674 160000
+--- a/app/files/misp-objects
++++ b/app/files/misp-objects
+@@ -1 +1 @@
+-Subproject commit 4b88a52cf4ac34b1ee23eaefe95aa9389a130b73
++Subproject commit e1f01f674fbaeb5f5af13b15f9b87ede9bcc1291
 diff --git a/app/files/scripts/stix2/stix2misp.py b/app/files/scripts/stix2/stix2misp.py
 index b44e86121..2efb8dd88 100644
 --- a/app/files/scripts/stix2/stix2misp.py
@@ -721,6 +742,13 @@ index b44e86121..2efb8dd88 100644
      stix_parser = StixFromMISPParser() if from_misp(event.objects) else ExternalStixParser()
      stix_parser.handler(event, filename, args[2:])
      stix_parser.save_file()
+diff --git a/app/files/warninglists b/app/files/warninglists
+index c2400b392..43592376c 160000
+--- a/app/files/warninglists
++++ b/app/files/warninglists
+@@ -1 +1 @@
+-Subproject commit c2400b392a85fae1ae0c92cbde4ca510b23b6189
++Subproject commit 43592376c030195575976ae33594487d10c40a9f
 diff --git a/db_schema.json b/db_schema.json
 index 2ab2ffe0c..0ad71ed22 100644
 --- a/db_schema.json
